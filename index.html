@@ -58,8 +58,8 @@
                         <label class="block text-sm font-bold text-gray-700 mb-1">Şifre</label>
                         <input type="password" id="login-password" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800" placeholder="••••••••">
                     </div>
-                    <button onclick="performLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200 shadow-md">
-                        Sisteme Giriş Yap
+                    <button onclick="performLogin()" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200 shadow-md flex justify-center items-center gap-2">
+                        <span>Sisteme Giriş Yap</span>
                     </button>
                 </div>
             </div>
@@ -139,7 +139,7 @@
                             <button onclick="openAddPersonnelModal()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition">+ Ekle</button>
                         </div>
                         <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2" id="personnel-list">
-                            <!-- JS ile dolacak -->
+                            <p class="text-xs text-gray-500 text-center py-4">Veriler yükleniyor...</p>
                         </div>
                     </div>
 
@@ -149,7 +149,7 @@
                             <span class="text-xs font-bold text-gray-700 uppercase"><i class="fa-solid fa-bolt text-orange-500"></i> Canlı Servis Akışı</span>
                         </div>
                         <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-gray-50" id="live-feed">
-                            <p class="text-xs text-gray-500 text-center mt-4">Henüz bir hareket yok.</p>
+                            <p class="text-xs text-gray-500 text-center mt-4">Veriler yükleniyor...</p>
                         </div>
                     </div>
                 </div>
@@ -232,7 +232,7 @@
                         <input type="text" id="new-p-pass" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: 1234">
                     </div>
                 </div>
-                <button onclick="saveNewPersonnel()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition shadow mt-2">
+                <button onclick="saveNewPersonnel()" id="btn-save-personnel" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition shadow mt-2 flex justify-center items-center">
                     Personeli Kaydet
                 </button>
             </div>
@@ -303,7 +303,7 @@
             
             <div class="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2 shrink-0">
                 <button onclick="closeNewTaskModal()" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">İptal</button>
-                <button onclick="assignTask()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition">Görevi Gönder (Bildirim)</button>
+                <button onclick="assignTask()" id="btn-assign-task" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition flex justify-center items-center">Görevi Gönder (Bildirim)</button>
             </div>
         </div>
     </div>
@@ -332,25 +332,56 @@
             
             <div class="flex gap-2">
                 <button onclick="closeCompleteModal()" class="w-1/3 bg-gray-200 text-gray-800 font-bold py-3 rounded-xl">İptal</button>
-                <button onclick="submitCompletedTask()" class="w-2/3 bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg flex justify-center items-center gap-2">
+                <button onclick="submitCompletedTask()" id="btn-submit-task" class="w-2/3 bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg flex justify-center items-center gap-2">
                     <i class="fa-solid fa-check"></i> Admine Gönder
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script>
-        // --- DATA ---
+    <!-- FIREBASE & UYGULAMA MANTIĞI EKLENDİ -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Yapılandırması ve Başlatılması
+        let app, auth, db, appId, userSession;
+        try {
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'gokhan-makina-default-id';
+        } catch (error) {
+            console.error("Firebase config error:", error);
+        }
+
+        // --- VERİ LİSTELERİ ---
         let personnelData = [];
         let taskData = [];
         let totalRevenue = 0;
         let activeMobileUserId = null;
 
-        // Leaflet Map Variables
+        // Leaflet Map Değişkenleri
         let mainMap, miniMap, miniMapMarker;
-        let taskMarkers = []; // Haritadaki kırmızı müşteri pinleri
-        let personnelMarkers = []; // Haritadaki mavi personel pinleri
+        let taskMarkers = []; 
+        let personnelMarkers = []; 
+
+        // Kimlik Doğrulama (Zorunlu Güvenlik Kuralı)
+        const initAuth = async () => {
+            if (!auth) return;
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+            }
+        };
+        initAuth();
 
         // Saat Güncelleme
         setInterval(() => {
@@ -358,52 +389,101 @@
             document.getElementById('current-time').innerText = now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
         }, 1000);
 
-        // --- LOGIN SISTEMI ---
-        function performLogin() {
+        // Kimlik Doğrulama Dinleyicisi ve Veri Çekme
+        onAuthStateChanged(auth, (u) => {
+            userSession = u;
+            if (userSession) {
+                startRealtimeListeners();
+            }
+        });
+
+        function startRealtimeListeners() {
+            // Personel Verileri Dinleyicisi
+            const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+            onSnapshot(personnelRef, (snapshot) => {
+                personnelData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderPersonnelList();
+                updateStats();
+            }, (error) => console.error("Personel veri hatası:", error));
+
+            // Görev Verileri Dinleyicisi
+            const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+            onSnapshot(tasksRef, (snapshot) => {
+                const oldTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                const newTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                totalRevenue = taskData.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.price || 0), 0);
+                
+                updateStats();
+                updateMainMapMarkers();
+                renderLiveFeed();
+
+                if (activeMobileUserId) {
+                    renderMobileApp();
+                    // Yeni iş geldiyse bildirim göster
+                    if (newTaskCount > oldTaskCount) {
+                        showMobileNotification();
+                    }
+                }
+            }, (error) => console.error("Görev veri hatası:", error));
+        }
+
+        // --- GLOBAL FONKSİYONLAR (HTML içinden çağrılabilmesi için window objesine aktarılır) ---
+
+        window.performLogin = () => {
             const userVal = document.getElementById('login-username').value.trim().toLowerCase();
             const passVal = document.getElementById('login-password').value.trim();
             const loginError = document.getElementById('login-error');
+            const loginBtn = document.getElementById('login-btn');
+            
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
 
-            if(userVal === 'mesut' && passVal === '0852') {
-                // YÖNETİCİ GİRİŞİ (Admin Ekranı)
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('top-nav').classList.remove('hidden');
-                document.getElementById('main-content-area').classList.remove('hidden');
+            setTimeout(() => {
+                loginBtn.innerHTML = 'Sisteme Giriş Yap';
                 
-                document.getElementById('admin-panel').classList.remove('hidden');
-                document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
-                
-                document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-user-tie"></i> Admin: Mesut`;
-                
-                initMaps();
-                renderPersonnelList();
-                updateStats();
-            } else {
-                // PERSONEL GİRİŞ KONTROLÜ
-                const person = personnelData.find(p => p.username === userVal && p.password === passVal);
-                
-                if(person) {
-                    activeMobileUserId = person.id;
-                    document.getElementById('active-mobile-user').innerText = person.name;
-                    
+                if(userVal === 'mesut' && passVal === '0852') {
+                    // YÖNETİCİ GİRİŞİ (Admin Ekranı)
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('top-nav').classList.remove('hidden');
                     document.getElementById('main-content-area').classList.remove('hidden');
                     
-                    // Admin panelini tamamen gizle, mobil ekranı tam ekran yap
-                    document.getElementById('admin-panel').classList.add('hidden');
-                    document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
+                    document.getElementById('admin-panel').classList.remove('hidden');
+                    document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
                     
-                    document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
+                    document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-user-tie"></i> Admin: Mesut`;
                     
-                    renderMobileApp();
+                    initMaps();
+                    renderPersonnelList();
+                    updateStats();
                 } else {
-                    loginError.classList.remove('hidden');
+                    // PERSONEL GİRİŞ KONTROLÜ
+                    const person = personnelData.find(p => p.username === userVal && p.password === passVal);
+                    
+                    if(person) {
+                        activeMobileUserId = person.id;
+                        document.getElementById('active-mobile-user').innerText = person.name;
+                        
+                        document.getElementById('login-screen').classList.add('hidden');
+                        document.getElementById('top-nav').classList.remove('hidden');
+                        document.getElementById('main-content-area').classList.remove('hidden');
+                        
+                        document.getElementById('admin-panel').classList.add('hidden');
+                        document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
+                        
+                        document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
+                        
+                        renderMobileApp();
+                    } else {
+                        loginError.classList.remove('hidden');
+                    }
                 }
-            }
-        }
+            }, 500); // Küçük bir gecikme efekti
+        };
 
-        function logout() {
+        window.logout = () => {
             activeMobileUserId = null;
             document.getElementById('main-content-area').classList.add('hidden');
             document.getElementById('top-nav').classList.add('hidden');
@@ -415,35 +495,30 @@
             
             document.getElementById('admin-panel').classList.remove('hidden');
             document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
-        }
+        };
 
         // --- MAPS INIT ---
         function initMaps() {
-            if (mainMap) return; // Zaten yüklüyse tekrar yükleme
+            if (mainMap) return; 
 
-            // Kızıltepe Koordinatları
             const defaultLat = 37.1950;
             const defaultLng = 40.5847;
 
-            // Ana Harita
             mainMap = L.map('main-map').setView([defaultLat, defaultLng], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(mainMap);
 
-            // Mini Harita (Görev Atama)
             miniMap = L.map('mini-map').setView([defaultLat, defaultLng], 14);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
             
             miniMapMarker = L.marker([defaultLat, defaultLng], {draggable: true}).addTo(miniMap);
             
-            // Marker sürüklendiğinde koordinatları al
             miniMapMarker.on('dragend', function (e) {
                 document.getElementById('task-lat').value = miniMapMarker.getLatLng().lat;
                 document.getElementById('task-lng').value = miniMapMarker.getLatLng().lng;
             });
 
-            // Haritaya tıklandığında markerı oraya taşı
             miniMap.on('click', function(e) {
                 miniMapMarker.setLatLng(e.latlng);
                 document.getElementById('task-lat').value = e.latlng.lat;
@@ -464,31 +539,64 @@
             document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString('tr-TR') + ' ₺';
         }
 
-        function addServiceFeed(title, desc, type, price = 0) {
+        function renderLiveFeed() {
             const feed = document.getElementById('live-feed');
+            feed.innerHTML = '';
+
+            let allFeedItems = [];
             
-            // İlk boş mesajı sil
-            if(feed.innerHTML.includes("Henüz bir hareket yok")) {
-                feed.innerHTML = '';
+            // Tamamlanan işleri ekle
+            taskData.filter(t => t.status === 'completed' && t.completedAt).forEach(t => {
+                const p = personnelData.find(pers => pers.id === t.pId);
+                allFeedItems.push({
+                    time: t.completedAt,
+                    title: "Servis Tamamlandı",
+                    desc: `${p ? p.name : 'Personel'}, ${t.customer} işlemini bitirdi. Not: ${t.note || '-'}`,
+                    type: "success",
+                    price: t.price
+                });
+            });
+            
+            // Açık işleri (yeni atanan) ekle
+            taskData.filter(t => t.status === 'open' && t.createdAt).forEach(t => {
+                const p = personnelData.find(pers => pers.id === t.pId);
+                allFeedItems.push({
+                    time: t.createdAt,
+                    title: "Görev Atandı",
+                    desc: `${p ? p.name : 'Personel'} personeline ${t.customer} için görev verildi.`,
+                    type: "new",
+                    price: 0
+                });
+            });
+            
+            // En yeni tarihe göre sırala
+            allFeedItems.sort((a,b) => b.time - a.time);
+            
+            if (allFeedItems.length === 0) {
+                feed.innerHTML = '<p class="text-xs text-gray-500 text-center mt-4">Henüz bir hareket yok.</p>';
+                return;
             }
-
-            const time = new Date().toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
-            let color = type === 'new' ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50';
-            let icon = type === 'new' ? '<i class="fa-solid fa-paper-plane text-blue-500"></i>' : '<i class="fa-solid fa-check-double text-green-500"></i>';
-            let priceHtml = price > 0 ? `<div class="mt-1 inline-block bg-green-200 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded">Tahsilat: ${price} ₺</div>` : '';
-
-            const item = document.createElement('div');
-            item.className = `p-2 border-l-4 rounded shadow-sm text-sm ${color}`;
-            item.innerHTML = `
-                <div class="flex justify-between items-start mb-1">
-                    <span class="font-bold text-gray-800 text-xs flex items-center gap-1">${icon} ${title}</span>
-                    <span class="text-[10px] text-gray-500">${time}</span>
-                </div>
-                <p class="text-xs text-gray-600">${desc}</p>
-                ${priceHtml}
-            `;
             
-            feed.insertBefore(item, feed.firstChild);
+            allFeedItems.forEach(item => {
+                const dateObj = new Date(item.time);
+                const timeStr = dateObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                
+                let color = item.type === 'new' ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50';
+                let icon = item.type === 'new' ? '<i class="fa-solid fa-paper-plane text-blue-500"></i>' : '<i class="fa-solid fa-check-double text-green-500"></i>';
+                let priceHtml = item.price > 0 ? `<div class="mt-1 inline-block bg-green-200 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded">Tahsilat: ${item.price} ₺</div>` : '';
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `p-2 border-l-4 rounded shadow-sm text-sm ${color}`;
+                itemDiv.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-bold text-gray-800 text-xs flex items-center gap-1">${icon} ${item.title}</span>
+                        <span class="text-[10px] text-gray-500">${timeStr}</span>
+                    </div>
+                    <p class="text-xs text-gray-600">${item.desc}</p>
+                    ${priceHtml}
+                `;
+                feed.appendChild(itemDiv);
+            });
         }
 
         function renderPersonnelList() {
@@ -505,12 +613,11 @@
             }
 
             personnelData.forEach(p => {
-                // Listeye Ekle
                 let statusColor = p.status === 'Bekliyor' ? 'bg-gray-400' : 'bg-green-500';
                 list.innerHTML += `
                     <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-gray-100">
                         <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold">
+                            <div class="w-8 h-8 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold uppercase">
                                 ${p.name.charAt(0)}
                             </div>
                             <div>
@@ -520,36 +627,29 @@
                                 </p>
                             </div>
                         </div>
-                        <button onclick="deletePersonnel(${p.id})" class="text-red-400 hover:text-red-600 px-2 py-1"><i class="fa-solid fa-trash-can"></i></button>
+                        <button onclick="deletePersonnel('${p.id}')" class="text-red-400 hover:text-red-600 px-2 py-1"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 `;
-
-                // Select'e Ekle
                 select.innerHTML += `<option value="${p.id}">${p.name} (${p.status})</option>`;
             });
 
             updateMainMapMarkers();
-            updateStats();
         }
 
-        // --- HARİTA GÜNCELLEMELERİ ---
         function updateMainMapMarkers() {
             if(!mainMap) return;
 
-            // Eski pinleri temizle
             taskMarkers.forEach(m => mainMap.removeLayer(m));
             personnelMarkers.forEach(m => mainMap.removeLayer(m));
             taskMarkers = [];
             personnelMarkers = [];
 
-            // Açık Görevleri Kırmızı Pin olarak ekle
             taskData.filter(t => t.status === 'open').forEach(task => {
                 const marker = L.marker([task.lat, task.lng]).addTo(mainMap);
                 marker.bindPopup(`<b>${task.customer}</b><br>${task.detail}`);
                 taskMarkers.push(marker);
             });
 
-            // Personelleri Mavi Custom Pin olarak ekle
             personnelData.forEach(p => {
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
@@ -564,103 +664,120 @@
         }
 
         // --- PERSONEL EKLEME/SİLME ---
-        function openAddPersonnelModal() { document.getElementById('add-personnel-modal').classList.remove('hidden'); }
-        function closeAddPersonnelModal() { 
+        window.openAddPersonnelModal = () => document.getElementById('add-personnel-modal').classList.remove('hidden');
+        window.closeAddPersonnelModal = () => { 
             document.getElementById('add-personnel-modal').classList.add('hidden');
             document.getElementById('new-p-name').value = '';
             document.getElementById('new-p-username').value = '';
             document.getElementById('new-p-pass').value = '';
-        }
+        };
         
-        function saveNewPersonnel() {
+        window.saveNewPersonnel = async () => {
             const name = document.getElementById('new-p-name').value;
             const user = document.getElementById('new-p-username').value.toLowerCase().trim();
             const pass = document.getElementById('new-p-pass').value;
+            const btn = document.getElementById('btn-save-personnel');
             
             if(!name || !user || !pass) { alert("Lütfen tüm alanları doldurun."); return; }
-            
-            personnelData.push({
-                id: Date.now(),
-                name: name,
-                username: user,
-                password: pass,
-                status: "Bekliyor",
-                lat: 37.1950 + (Math.random() * 0.01 - 0.005), // Rastgele yakın konum
-                lng: 40.5847 + (Math.random() * 0.01 - 0.005)
-            });
-            
-            closeAddPersonnelModal();
-            renderPersonnelList();
-            addServiceFeed("Yeni Personel Eklendi", `${name} sisteme dahil edildi.`, "new");
-        }
+            if(!userSession) return;
 
-        function deletePersonnel(id) {
-            if(confirm("Personeli silmek istediğinize emin misiniz?")) {
-                personnelData = personnelData.filter(p => p.id !== id);
-                renderPersonnelList();
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
+            btn.disabled = true;
+
+            try {
+                const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+                await addDoc(personnelRef, {
+                    name: name,
+                    username: user,
+                    password: pass,
+                    status: "Bekliyor",
+                    lat: 37.1950 + (Math.random() * 0.01 - 0.005), 
+                    lng: 40.5847 + (Math.random() * 0.01 - 0.005)
+                });
+                window.closeAddPersonnelModal();
+            } catch (error) {
+                console.error(error);
+                alert("Personel eklenirken hata oluştu!");
+            } finally {
+                btn.innerHTML = 'Personeli Kaydet';
+                btn.disabled = false;
             }
-        }
+        };
+
+        window.deletePersonnel = async (id) => {
+            if(!userSession) return;
+            if(confirm("Personeli tamamen silmek istediğinize emin misiniz?")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'personnel', id));
+                } catch(error) {
+                    console.error("Silme hatası:", error);
+                }
+            }
+        };
 
         // --- GÖREV ATAMA (ADMIN) ---
-        function openNewTaskModal() {
+        window.openNewTaskModal = () => {
             if(personnelData.length === 0) { alert("Lütfen önce personel ekleyin!"); return; }
             document.getElementById('new-task-modal').classList.remove('hidden');
             setTimeout(() => miniMap.invalidateSize(), 200);
-        }
-        function closeNewTaskModal() {
+        };
+        
+        window.closeNewTaskModal = () => {
             document.getElementById('new-task-modal').classList.add('hidden');
-            // Formu temizle
             document.getElementById('task-customer').value = '';
             document.getElementById('task-phone').value = '';
             document.getElementById('task-detail').value = '';
             document.getElementById('task-address').value = '';
             document.getElementById('map-search-input').value = '';
-        }
+        };
 
-        function assignTask() {
-            const pId = parseInt(document.getElementById('task-assignee').value);
+        window.assignTask = async () => {
+            if(!userSession) return;
+            
+            const pId = document.getElementById('task-assignee').value; // Artık string ID
             const customer = document.getElementById('task-customer').value || "Bilinmeyen Müşteri";
             const phone = document.getElementById('task-phone').value || "";
             const detail = document.getElementById('task-detail').value || "Arıza Kontrolü";
             const address = document.getElementById('task-address').value;
             const lat = parseFloat(document.getElementById('task-lat').value);
             const lng = parseFloat(document.getElementById('task-lng').value);
+            const btn = document.getElementById('btn-assign-task');
 
-            const person = personnelData.find(p => p.id === pId);
-            
-            person.status = "Sahada";
-            renderPersonnelList();
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gönderiliyor...';
+            btn.disabled = true;
 
-            const taskId = Date.now();
-            const newTask = {
-                id: taskId,
-                pId: pId,
-                customer: customer,
-                phone: phone,
-                detail: detail,
-                address: address,
-                lat: lat,
-                lng: lng,
-                status: 'open'
-            };
-            
-            taskData.push(newTask);
-            
-            addServiceFeed("Görev Atandı", `${person.name} personeline ${customer} için görev verildi.`, "new");
-            updateMainMapMarkers();
-            updateStats();
-            closeNewTaskModal();
+            try {
+                // 1. Yeni görevi buluta yaz
+                const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+                await addDoc(tasksRef, {
+                    pId: pId,
+                    customer: customer,
+                    phone: phone,
+                    detail: detail,
+                    address: address,
+                    lat: lat,
+                    lng: lng,
+                    status: 'open',
+                    createdAt: Date.now()
+                });
 
-            // Eğer hedef personel aktif mobildeyse hemen bildirim göster
-            if(activeMobileUserId === pId) {
-                renderMobileApp();
-                showMobileNotification();
+                // 2. Personel durumunu güncelle (Sahada)
+                const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', pId);
+                await updateDoc(personRef, { status: "Sahada" });
+
+                window.closeNewTaskModal();
+            } catch (error) {
+                console.error(error);
+                alert("Görev gönderilirken hata oluştu!");
+            } finally {
+                btn.innerHTML = 'Görevi Gönder (Bildirim)';
+                btn.disabled = false;
             }
-        }
+        };
 
         // Harita Büyütme
         let isMapFullscreen = false;
-        function toggleMapFullscreen() {
+        window.toggleMapFullscreen = () => {
             const container = document.getElementById('mini-map-container');
             const mapDiv = document.getElementById('mini-map');
             const closeBtn = document.getElementById('close-fullscreen-btn');
@@ -678,10 +795,10 @@
                 closeBtn.classList.add('hidden');
             }
             setTimeout(() => miniMap.invalidateSize(), 300);
-        }
+        };
 
         // Adres Arama
-        async function searchAddress(event) {
+        window.searchAddress = async (event) => {
             const query = document.getElementById('map-search-input').value;
             if(!query) return;
             
@@ -711,7 +828,7 @@
             } finally {
                 btn.innerHTML = originalHtml;
             }
-        }
+        };
 
         // --- MOBİL UYGULAMA (PERSONEL) FONKSİYONLARI ---
 
@@ -719,9 +836,9 @@
             const container = document.getElementById('mobile-task-list');
             const emptyState = document.getElementById('mobile-empty-state');
             
-            const myTasks = taskData.filter(t => t.pId === activeMobileUserId && t.status === 'open');
+            const myTasks = taskData.filter(t => t.pId === activeMobileUserId && t.status === 'open').sort((a,b) => b.createdAt - a.createdAt);
 
-            // Mevcut kartları temizle
+            // Bildirim hariç kartları temizle
             Array.from(container.children).forEach(child => {
                 if(child.id !== 'mobile-notification' && child.id !== 'mobile-empty-state') {
                     child.remove();
@@ -737,7 +854,6 @@
                     const addressHtml = task.address ? `<p class="text-[10px] text-gray-600 mt-2 mb-1 border-l-2 border-blue-500 pl-2 bg-blue-50 py-1"><i class="fa-solid fa-location-dot mr-1 text-blue-500"></i>${task.address}</p>` : '';
                     const phoneHtml = task.phone ? `<div class="mb-2"><a href="tel:${task.phone}" class="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full"><i class="fa-solid fa-phone"></i> ${task.phone}</a></div>` : '';
                     
-                    // Yol Tarifi (Google Maps)
                     const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
 
                     const card = document.createElement('div');
@@ -752,7 +868,7 @@
                         <p class="text-xs text-gray-500 mb-2">${task.detail}</p>
                         ${addressHtml}
                         
-                        <button onclick="openCompleteModal(${task.id}, '${task.customer.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 text-white text-xs font-bold py-2 mt-2 rounded shadow hover:bg-blue-700 transition">
+                        <button onclick="openCompleteModal('${task.id}', '${task.customer.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 text-white text-xs font-bold py-2 mt-2 rounded shadow hover:bg-blue-700 transition">
                             İŞİ TAMAMLA VE KAPAT
                         </button>
                     `;
@@ -761,58 +877,67 @@
             }
         }
 
-        function showMobileNotification() {
+        window.showMobileNotification = () => {
             const notif = document.getElementById('mobile-notification');
             notif.classList.remove('hidden');
             setTimeout(() => {
                 notif.classList.add('hidden');
             }, 4000);
-        }
+        };
 
-        function openCompleteModal(taskId, customerName) {
+        window.openCompleteModal = (taskId, customerName) => {
             document.getElementById('complete-task-id').value = taskId;
             document.getElementById('complete-customer-name').innerText = customerName;
             document.getElementById('complete-task-modal').classList.remove('hidden');
             document.getElementById('complete-note').value = '';
             document.getElementById('complete-price').value = '';
-        }
+        };
 
-        function closeCompleteModal() {
+        window.closeCompleteModal = () => {
             document.getElementById('complete-task-modal').classList.add('hidden');
-        }
+        };
 
-        function submitCompletedTask() {
-            const taskId = parseInt(document.getElementById('complete-task-id').value);
+        window.submitCompletedTask = async () => {
+            if(!userSession) return;
+
+            const taskId = document.getElementById('complete-task-id').value; // string ID
             const note = document.getElementById('complete-note').value;
             const price = parseFloat(document.getElementById('complete-price').value) || 0;
+            const btn = document.getElementById('btn-submit-task');
 
-            const task = taskData.find(t => t.id === taskId);
-            const person = personnelData.find(p => p.id === task.pId);
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İletiliyor...';
+            btn.disabled = true;
 
-            // Verileri Güncelle
-            task.status = 'completed';
-            task.note = note;
-            task.price = price;
-            
-            totalRevenue += price;
+            try {
+                // 1. Görevi bulutta güncelle
+                const taskRef = doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId);
+                await updateDoc(taskRef, {
+                    status: 'completed',
+                    note: note,
+                    price: price,
+                    completedAt: Date.now()
+                });
 
-            // Personeli boşa çıkar
-            const hasMoreTasks = taskData.some(t => t.pId === person.id && t.status === 'open');
-            if(!hasMoreTasks) {
-                person.status = "Bekliyor";
+                // 2. Personel durumunu kontrol et (Açık işi kaldı mı?)
+                const currentTask = taskData.find(t => t.id === taskId);
+                if(currentTask) {
+                    const hasMoreTasks = taskData.some(t => t.pId === currentTask.pId && t.status === 'open' && t.id !== taskId);
+                    if(!hasMoreTasks) {
+                        const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', currentTask.pId);
+                        await updateDoc(personRef, { status: "Bekliyor" });
+                    }
+                }
+
+                window.closeCompleteModal();
+                alert("İş başarıyla tamamlandı ve merkeze iletildi!");
+            } catch (error) {
+                console.error(error);
+                alert("İşlem kaydedilirken bir hata oluştu.");
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Admine Gönder';
+                btn.disabled = false;
             }
-
-            // Admin Panelini Güncelle
-            addServiceFeed("Servis Tamamlandı", `${person.name}, ${task.customer} işlemini bitirdi: ${note}`, "success", price);
-            updateStats();
-            renderPersonnelList();
-            
-            // Mobil ekranı güncelle
-            closeCompleteModal();
-            renderMobileApp();
-            
-            alert("İş başarıyla tamamlandı ve merkeze iletildi!");
-        }
+        };
     </script>
 </body>
 </html>
