@@ -389,63 +389,22 @@
             document.getElementById('current-time').innerText = now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
         }, 1000);
 
-        // Kimlik Doğrulama Dinleyicisi ve Veri Çekme
-        onAuthStateChanged(auth, (u) => {
-            userSession = u;
-            if (userSession) {
-                startRealtimeListeners();
-            }
-        });
+        // --- GLOBAL FONKSİYONLAR ---
 
-        function startRealtimeListeners() {
-            // Personel Verileri Dinleyicisi
-            const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
-            onSnapshot(personnelRef, (snapshot) => {
-                personnelData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderPersonnelList();
-                updateStats();
-            }, (error) => console.error("Personel veri hatası:", error));
-
-            // Görev Verileri Dinleyicisi
-            const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
-            onSnapshot(tasksRef, (snapshot) => {
-                const oldTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
-                
-                taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
-                const newTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
-                
-                totalRevenue = taskData.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.price || 0), 0);
-                
-                updateStats();
-                updateMainMapMarkers();
-                renderLiveFeed();
-
-                if (activeMobileUserId) {
-                    renderMobileApp();
-                    // Yeni iş geldiyse bildirim göster
-                    if (newTaskCount > oldTaskCount) {
-                        showMobileNotification();
-                    }
-                }
-            }, (error) => console.error("Görev veri hatası:", error));
-        }
-
-        // --- GLOBAL FONKSİYONLAR (HTML içinden çağrılabilmesi için window objesine aktarılır) ---
-
-        window.performLogin = () => {
+        window.performLogin = async () => {
             const userVal = document.getElementById('login-username').value.trim().toLowerCase();
             const passVal = document.getElementById('login-password').value.trim();
             const loginError = document.getElementById('login-error');
             const loginBtn = document.getElementById('login-btn');
             
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
+            loginError.classList.add('hidden');
 
-            setTimeout(() => {
-                loginBtn.innerHTML = 'Sisteme Giriş Yap';
-                
+            try {
+                // YÖNETİCİ GİRİŞİ KONTROLÜ (Veritabanında olmasa bile giriş yapabilsin)
                 if(userVal === 'mesut' && passVal === '0852') {
-                    // YÖNETİCİ GİRİŞİ (Admin Ekranı)
+                    
+                    // Arayüzü Değiştir
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('top-nav').classList.remove('hidden');
                     document.getElementById('main-content-area').classList.remove('hidden');
@@ -456,31 +415,59 @@
                     document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-user-tie"></i> Admin: Mesut`;
                     
                     initMaps();
-                    renderPersonnelList();
-                    updateStats();
-                } else {
-                    // PERSONEL GİRİŞ KONTROLÜ
-                    const person = personnelData.find(p => p.username === userVal && p.password === passVal);
                     
-                    if(person) {
-                        activeMobileUserId = person.id;
-                        document.getElementById('active-mobile-user').innerText = person.name;
-                        
-                        document.getElementById('login-screen').classList.add('hidden');
-                        document.getElementById('top-nav').classList.remove('hidden');
-                        document.getElementById('main-content-area').classList.remove('hidden');
-                        
-                        document.getElementById('admin-panel').classList.add('hidden');
-                        document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
-                        
-                        document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
-                        
-                        renderMobileApp();
-                    } else {
-                        loginError.classList.remove('hidden');
+                    // Admin'i de veritabanına "Yönetici" rolüyle kaydet (Yoksa)
+                    if(userSession && !personnelData.some(p => p.username === 'mesut')) {
+                         const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+                         await addDoc(personnelRef, {
+                            name: "Mesut (Admin)",
+                            username: "mesut",
+                            password: "0852",
+                            status: "Yönetici",
+                            role: "admin", // Admin rolü
+                            lat: 37.1950, 
+                            lng: 40.5847
+                        });
                     }
+
+                    return; // Fonksiyondan çık, başarılı
+                } 
+
+                // PERSONEL GİRİŞ KONTROLÜ (Veritabanından)
+                const person = personnelData.find(p => p.username === userVal && p.password === passVal);
+                
+                if(person) {
+                    // Eğer giriş yapan kişi daha önce eklediğimiz "Admin" ise, personel ekranına yönlendirme
+                    if(person.role === 'admin') {
+                        document.getElementById('login-username').value = 'mesut';
+                        document.getElementById('login-password').value = '0852';
+                        window.performLogin(); // Admin girişine tekrar yönlendir
+                        return;
+                    }
+
+                    activeMobileUserId = person.id;
+                    document.getElementById('active-mobile-user').innerText = person.name;
+                    
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('top-nav').classList.remove('hidden');
+                    document.getElementById('main-content-area').classList.remove('hidden');
+                    
+                    document.getElementById('admin-panel').classList.add('hidden');
+                    document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
+                    
+                    document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
+                    
+                    renderMobileApp();
+                } else {
+                    loginError.classList.remove('hidden');
                 }
-            }, 500); // Küçük bir gecikme efekti
+            } catch(e) {
+                console.error("Giriş Hatası:", e);
+                loginError.innerText = "Sistemsel bir hata oluştu. Lütfen tekrar deneyin.";
+                loginError.classList.remove('hidden');
+            } finally {
+                loginBtn.innerHTML = '<span>Sisteme Giriş Yap</span>';
+            }
         };
 
         window.logout = () => {
@@ -606,13 +593,16 @@
             list.innerHTML = '';
             select.innerHTML = '';
 
-            if(personnelData.length === 0) {
+            // Personel listesinden "Admin" (mesut) hesabını gizle (sadece personeller görünsün)
+            const filteredPersonnel = personnelData.filter(p => p.role !== 'admin');
+
+            if(filteredPersonnel.length === 0) {
                 list.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">Henüz personel eklenmedi.</p>`;
                 select.innerHTML = `<option value="">Önce personel ekleyin</option>`;
                 return;
             }
 
-            personnelData.forEach(p => {
+            filteredPersonnel.forEach(p => {
                 let statusColor = p.status === 'Bekliyor' ? 'bg-gray-400' : 'bg-green-500';
                 list.innerHTML += `
                     <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-gray-100">
@@ -650,7 +640,8 @@
                 taskMarkers.push(marker);
             });
 
-            personnelData.forEach(p => {
+            // Sadece admin OLMAYAN personellerin konumunu haritada göster
+            personnelData.filter(p => p.role !== 'admin').forEach(p => {
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
                     html: `<div class="w-4 h-4 bg-blue-500 border-2 border-white rounded-full shadow-lg marker-pulse"></div>`,
