@@ -1,86 +1,1072 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Gokhan Makina">
-  <!-- GitHub Pages'te tek dosya olarak da acilabilmesi icin manifest/icon zorunlu degil. -->
-  <title>Gokhan Makina - Saha Ekip Yonetimi</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    :root {
-      --ink: #182230;
-      --muted: #667085;
-      --line: #d7e0eb;
-      --panel: rgba(255, 255, 255, .94);
-      --soft: #f5f7fb;
-      --brand: #0f766e;
-      --brand-dark: #0b5d57;
-      --navy: #101828;
-      --gold: #d97706;
-      --green: #0f766e;
-      --amber: #b54708;
-      --red: #b42318;
-      --radius: 8px;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      background:
-        linear-gradient(135deg, rgba(15, 118, 110, .08), transparent 32%),
-        linear-gradient(315deg, rgba(217, 119, 6, .08), transparent 30%),
-        #eef3f8;
-      color: var(--ink);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      overflow: hidden;
-    }
-    button, input, textarea, select { font: inherit; }
-    .hidden { display: none !important; }
-    #login-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      background: #101828;
-    }
-    #top-nav {
-      height: 56px;
-      flex-shrink: 0;
-    }
-    #top-nav.flex,
-    #main-content-area.flex {
-      display: flex !important;
-    }
-    #main-content-area {
-      height: calc(100vh - 56px);
-    }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .app-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: 0 18px 40px rgba(16, 24, 40, .08);
-      backdrop-filter: blur(10px);
-    }
-    .app-button {
-      min-height: 40px;
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 0 14px;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gökhan Makina - Saha Ekip Yönetimi</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet CSS (Harita İçin) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Leaflet JS (Harita İçin) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .marker-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen overflow-hidden font-sans flex flex-col">
+
+    <!-- GİRİŞ EKRANI -->
+    <div id="login-screen" class="fixed inset-0 bg-[#2d3748] z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div class="bg-blue-600 p-6 text-center">
+                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-blue-600 text-3xl mx-auto mb-3 shadow-lg">
+                    <i class="fa-solid fa-gears"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white tracking-wide">GÖKHAN MAKİNA</h2>
+                <p class="text-blue-100 text-sm mt-1">Saha Personel Yönetimi</p>
+                <div id="conn-badge" class="mt-2 inline-flex items-center gap-1.5 bg-yellow-500/20 text-yellow-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-yellow-500/30">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> Bulut Bağlantısı Kuruluyor...
+                </div>
+            </div>
+            <div class="p-8">
+                <div id="login-error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-3 text-sm mb-4">
+                    Kullanıcı adı veya şifre hatalı!
+                </div>
+                <div class="space-y-5 mb-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Kullanıcı Adı</label>
+                        <input type="text" id="login-username" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800" placeholder="Kullanıcı Adı">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Şifre</label>
+                        <input type="password" id="login-password" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800" placeholder="••••••••">
+                    </div>
+                    <button onclick="performLogin()" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200 shadow-md flex justify-center items-center gap-2">
+                        <span>Sisteme Giriş Yap</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav id="top-nav" class="hidden h-14 bg-[#1a202c] text-white flex items-center justify-between px-6 shadow-md shrink-0">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-gears text-orange-500 text-xl"></i>
+            <span class="font-bold tracking-wide">GÖKHAN MAKİNA <span class="text-gray-400 font-normal text-sm">SAHA YÖNETİMİ</span></span>
+        </div>
+        <div class="flex items-center gap-4 text-sm">
+            <div class="flex items-center gap-2 bg-gray-700 px-3 py-1.5 rounded-full">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span id="current-time">00:00</span>
+            </div>
+            <div class="flex items-center gap-3 font-medium">
+                <span id="active-user-label" class="flex items-center gap-2"><i class="fa-solid fa-user-tie"></i> Admin Panel</span>
+                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded flex items-center gap-1 transition shadow"><i class="fa-solid fa-power-off"></i> Çıkış</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div id="main-content-area" class="hidden flex-1 flex overflow-hidden">
+        
+        <!-- ==================== SOL TARAF: ADMİN PANELİ ==================== -->
+        <div id="admin-panel" class="w-full lg:w-2/3 flex flex-col h-full bg-gray-100">
+            <!-- Admin Top Bar -->
+            <div class="bg-white p-4 border-b border-gray-200 flex justify-between items-center shadow-sm z-10 shrink-0">
+                <h2 class="font-bold text-gray-800 text-lg">Saha ve Personel Durumu</h2>
+                <button onclick="openNewTaskModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-bold shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Yeni Servis Görevi Ata
+                </button>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-4 gap-px bg-gray-200 shrink-0">
+                <div class="bg-white p-3 text-center">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Sahadaki Personel</p>
+                    <p class="text-xl font-black text-gray-800 mt-1" id="stat-personnel">0</p>
+                </div>
+                <div class="bg-white p-3 text-center border-l border-gray-100">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Açık Görevler</p>
+                    <p class="text-xl font-black text-orange-500 mt-1" id="stat-open">0</p>
+                </div>
+                <div class="bg-white p-3 text-center border-l border-gray-100">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Tamamlanan</p>
+                    <p class="text-xl font-black text-green-600 mt-1" id="stat-closed">0</p>
+                </div>
+                <div class="bg-white p-3 text-center border-l border-gray-100 bg-green-50">
+                    <p class="text-[10px] font-bold text-green-700 uppercase tracking-wide">Günlük Ciro</p>
+                    <p class="text-xl font-black text-green-700 mt-1" id="stat-revenue">0 ₺</p>
+                </div>
+            </div>
+
+            <!-- Map and Panels -->
+            <div class="flex-1 flex overflow-hidden">
+                <!-- MAP -->
+                <div class="w-2/3 h-full relative border-r border-gray-200">
+                    <div id="main-map" class="w-full h-full z-0"></div>
+                    <!-- Map Legend -->
+                    <div class="absolute bottom-6 right-6 bg-white p-3 rounded shadow-lg z-[1000] text-xs font-medium space-y-2 border border-gray-200">
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div> Personel Konumu</div>
+                        <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-500"></div> Bekleyen Servis</div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar (Personnel & Feed) -->
+                <div class="w-1/3 h-full flex flex-col bg-white overflow-hidden">
+                    
+                    <!-- Personnel List -->
+                    <div class="h-1/2 flex flex-col border-b border-gray-200">
+                        <div class="bg-gray-50 p-2 border-b border-gray-200 flex justify-between items-center">
+                            <span class="text-xs font-bold text-gray-700 uppercase">Personel Yönetimi</span>
+                            <button onclick="openAddPersonnelModal()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded transition">+ Ekle</button>
+                        </div>
+                        <div class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2" id="personnel-list">
+                            <p class="text-xs text-gray-500 text-center py-4">Veriler yükleniyor...</p>
+                        </div>
+                    </div>
+
+                    <!-- Live Feed -->
+                    <div class="h-1/2 flex flex-col">
+                        <div class="bg-gray-50 p-2 border-b border-gray-200">
+                            <span class="text-xs font-bold text-gray-700 uppercase"><i class="fa-solid fa-bolt text-orange-500"></i> Canlı Servis Akışı</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-gray-50" id="live-feed">
+                            <p class="text-xs text-gray-500 text-center mt-4">Veriler yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SAĞ TARAF: PERSONEL MOBİL UYGULAMASI ==================== -->
+        <div id="mobile-panel" class="hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]">
+            
+            <div class="mb-4 text-center">
+                <h3 class="text-white font-bold text-lg"><i class="fa-solid fa-mobile-screen"></i> Personel Cihazı</h3>
+                <p class="text-gray-400 text-xs mt-1">Personelin sahada gördüğü ekran</p>
+                <p id="active-mobile-user" class="text-orange-400 font-bold text-sm mt-1"></p>
+            </div>
+
+            <!-- Phone Frame -->
+            <div class="w-[320px] h-[650px] bg-black rounded-[2.5rem] p-3 shadow-2xl relative flex flex-col ring-4 ring-gray-800">
+                <!-- Notch -->
+                <div class="absolute top-0 inset-x-0 h-6 flex justify-center">
+                    <div class="w-32 h-6 bg-black rounded-b-xl"></div>
+                </div>
+
+                <!-- Screen Content -->
+                <div class="bg-gray-50 flex-1 rounded-[2rem] overflow-hidden flex flex-col relative pt-5">
+                    
+                    <!-- Mobil Uygulama Header -->
+                    <div class="bg-[#2563eb] text-white p-4 shadow flex justify-between items-center shrink-0">
+                        <div>
+                            <div class="text-xs opacity-80">Gökhan Makina - Saha</div>
+                            <div class="font-bold text-sm">İş Listem</div>
+                        </div>
+                        <button onclick="logout()" title="Çıkış Yap" class="w-8 h-8 bg-white/20 hover:bg-red-500 rounded-full flex items-center justify-center transition">
+                            <i class="fa-solid fa-power-off"></i>
+                        </button>
+                    </div>
+
+                    <!-- Mobil Uygulama İçerik -->
+                    <div class="flex-1 overflow-y-auto custom-scrollbar p-3 relative" id="mobile-task-list">
+                        
+                        <!-- Bildirim (Başlangıçta Gizli) -->
+                        <div id="mobile-notification" class="hidden bg-green-500 text-white p-3 rounded-lg shadow-lg mb-4 text-sm font-bold animate-bounce flex items-center gap-2">
+                            <i class="fa-solid fa-bell"></i> Yeni bir görev atandı!
+                        </div>
+
+                        <!-- Boş Durum -->
+                        <div id="mobile-empty-state" class="text-center mt-20 opacity-50">
+                            <i class="fa-solid fa-mug-hot text-4xl mb-3"></i>
+                            <p class="text-sm font-medium">Şu an bekleyen<br>işiniz bulunmuyor.</p>
+                        </div>
+                        
+                        <!-- Task Cards buraya eklenecek -->
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODALLAR ==================== -->
+
+    <!-- Personel Ekle Modal -->
+    <div id="add-personnel-modal" class="hidden fixed inset-0 bg-black/60 z-[2000] flex items-center justify-center">
+        <div class="bg-white w-[350px] rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-gray-800 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2"><i class="fa-solid fa-user-plus"></i> Yeni Personel Ekle</h3>
+                <button onclick="closeAddPersonnelModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Ad Soyad</label>
+                    <input type="text" id="new-p-name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Ali Yılmaz">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Kullanıcı Adı (Giriş)</label>
+                        <input type="text" id="new-p-username" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: ali">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Şifre (Giriş)</label>
+                        <input type="text" id="new-p-pass" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: 1234">
+                    </div>
+                </div>
+                <button onclick="saveNewPersonnel()" id="btn-save-personnel" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded transition shadow mt-2 flex justify-center items-center">
+                    Personeli Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Yeni Görev Modal (Admin) -->
+    <div id="new-task-modal" class="hidden fixed inset-0 bg-black/60 z-[2000] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-full">
+            <div class="bg-blue-600 text-white p-4 flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-lg flex items-center gap-2"><i class="fa-solid fa-location-arrow"></i> Yeni Servis Görevi Oluştur</h3>
+                <button onclick="closeNewTaskModal()" class="text-blue-200 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            
+            <div class="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Görevlendirilecek Personel</label>
+                    <select id="task-assignee" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
+                        <!-- JS ile dolacak -->
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Müşteri / Firma Adı</label>
+                    <input type="text" id="task-customer" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Can Tekstil A.Ş.">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">İletişim Numarası (Telefon)</label>
+                    <input type="tel" id="task-phone" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: 0555 123 45 67">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Arıza / İşlem Detayı</label>
+                    <textarea id="task-detail" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Dikiş makinesi motor arızası..."></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Açık Adres (İsteğe Bağlı)</label>
+                    <textarea id="task-address" rows="1" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Tepebaşı Mah. Hastane Cad. No:12..."></textarea>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <label class="block text-xs font-bold text-gray-700">Haritadan Konum Seçin</label>
+                        <button onclick="toggleMapFullscreen()" class="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded font-bold transition flex items-center gap-1">
+                            <i class="fa-solid fa-expand"></i> Büyüt
+                        </button>
+                    </div>
+                    
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" id="map-search-input" class="flex-1 border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" placeholder="Açık adres veya mekan ara...">
+                        <button onclick="searchAddress(event)" class="bg-gray-800 hover:bg-gray-900 text-white px-3 py-1.5 rounded text-xs transition min-w-[60px]">
+                            <i class="fa-solid fa-magnifying-glass"></i> Ara
+                        </button>
+                    </div>
+
+                    <div id="mini-map-container" class="relative w-full transition-all duration-300 bg-white">
+                        <button id="close-fullscreen-btn" onclick="toggleMapFullscreen()" class="hidden absolute top-4 right-4 z-[2000] bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:bg-red-700 flex items-center gap-2">
+                            <i class="fa-solid fa-compress"></i> Küçült
+                        </button>
+                        <div id="mini-map" class="w-full h-32 border border-gray-300 rounded z-10"></div>
+                        <!-- Arka planda koordinatları tutmak için gizli inputlar -->
+                        <input type="hidden" id="task-lat" value="37.1950">
+                        <input type="hidden" id="task-lng" value="40.5847">
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-1">Pini sürükleyin veya haritaya tıklayın.</p>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2 shrink-0">
+                <button onclick="closeNewTaskModal()" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">İptal</button>
+                <button onclick="assignTask()" id="btn-assign-task" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow transition flex justify-center items-center">Görevi Gönder (Bildirim)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- İşi Tamamlama Modal (Personel Mobil) -->
+    <div id="complete-task-modal" class="hidden fixed inset-0 bg-black/60 z-[3000] flex flex-col justify-end">
+        <div class="bg-white rounded-t-3xl p-5 shadow-2xl transform transition-transform duration-300">
+            <h3 class="font-bold text-lg text-gray-800 mb-1">Servisi Tamamla</h3>
+            <p class="text-xs text-gray-500 mb-4" id="complete-customer-name"></p>
+            
+            <input type="hidden" id="complete-task-id">
+            
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Yapılan İşlem / Açıklama</label>
+                    <textarea id="complete-note" rows="3" class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-gray-50" placeholder="Örn: Anakart değiştirildi, test edildi..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Alınan Servis Ücreti (TL)</label>
+                    <div class="relative">
+                        <input type="number" id="complete-price" class="w-full border border-gray-300 rounded-xl pl-3 pr-10 py-3 text-lg font-bold focus:outline-none focus:border-green-500 bg-gray-50 text-green-700" placeholder="0">
+                        <span class="absolute right-4 top-3 text-gray-400 font-bold">₺</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button onclick="closeCompleteModal()" class="w-1/3 bg-gray-200 text-gray-800 font-bold py-3 rounded-xl">İptal</button>
+                <button onclick="submitCompletedTask()" id="btn-submit-task" class="w-2/3 bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-check"></i> Admine Gönder
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="hidden fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-100">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xl mb-4 mx-auto animate-bounce">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <p id="confirm-modal-text" class="text-gray-700 text-sm font-semibold"></p>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 justify-end border-t border-gray-100">
+                <button id="confirm-cancel-btn" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-lg">Vazgeç</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm">Evet, Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Container -->
+    <div id="custom-toast-container" class="fixed top-4 right-4 z-[99999] space-y-2 pointer-events-none"></div>
+
+    <!-- FIREBASE & UYGULAMA MANTIĞI EKLENDİ -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase ve Canvas ID Yapılandırması
+        let app, auth, db, appId, userSession;
+        
+        // Kullanıcının gerçek Firebase bilgileri
+        const firebaseConfig = {
+          apiKey: "AIzaSyBZfRIh5ArL-WObbjh09XMa0y--2nvUyFI",
+          authDomain: "gokhan-makina.firebaseapp.com",
+          projectId: "gokhan-makina",
+          storageBucket: "gokhan-makina.firebasestorage.app",
+          messagingSenderId: "1088331719728",
+          appId: "1:1088331719728:web:58c5e78bb205164be279f5",
+          measurementId: "G-1WT7FVD1NY"
+        };
+
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            // Firebase uyuşmazlığı yaşamamak ve iki ayrı cihazın senkronize olması için sabit appId
+            appId = "gokhan-makina-v1"; 
+        } catch (error) {
+            console.error("Firebase config error:", error);
+        }
+
+        // --- VERİ LİSTELERİ ---
+        let personnelData = [];
+        let taskData = [];
+        let totalRevenue = 0;
+        let activeMobileUserId = null;
+
+        // Leaflet Map Değişkenleri
+        let mainMap, miniMap, miniMapMarker;
+        let taskMarkers = []; 
+        let personnelMarkers = []; 
+
+        // Premium Özel Marker Tasarımları (DIV Icon & SVG)
+        const bluePinIcon = L.divIcon({
+            className: 'custom-pin-blue',
+            html: `
+                <div class="relative flex items-center justify-center">
+                    <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-blue-400 opacity-75"></span>
+                    <div class="relative w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg"></div>
+                </div>
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const redPinIcon = L.divIcon({
+            className: 'custom-pin-red',
+            html: `
+                <div class="relative flex items-center justify-center">
+                    <div class="w-8 h-8 text-red-600 drop-shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                            <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            `,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        // --- ANİMASYONLU TOAST VE CONFIRM SİSTEMİ (ÖZEL) ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('custom-toast-container');
+            const toast = document.createElement('div');
+            toast.className = `transform translate-y-2 opacity-0 transition-all duration-300 pointer-events-auto p-4 rounded-xl shadow-xl flex items-center gap-3 text-sm font-semibold text-white ${
+                type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+            }`;
+            
+            const icon = type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-xmark' : 'fa-circle-info';
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showConfirm(message, callback) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const text = document.getElementById('confirm-modal-text');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            const okBtn = document.getElementById('confirm-ok-btn');
+            
+            text.innerText = message;
+            modal.classList.remove('hidden');
+            
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+            
+            okBtn.onclick = () => {
+                callback();
+                cleanup();
+            };
+            cancelBtn.onclick = () => {
+                cleanup();
+            };
+        }
+
+        // Kimlik Doğrulama (Zorunlu Güvenlik Kuralı - RULE 3)
+        const initAuth = async () => {
+            if (!auth) return;
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+                showToast("Firebase'de 'Anonymous' giriş yöntemi kapalı! Lütfen Firebase panelinden aktifleştirin.", "error");
+                const connBadge = document.getElementById('conn-badge');
+                if (connBadge) {
+                    connBadge.className = "mt-2 inline-flex items-center gap-1.5 bg-red-500/20 text-red-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-red-500/30";
+                    connBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Bağlantı Başarısız (Auth Kapalı)`;
+                }
+            }
+        };
+        initAuth();
+
+        // Kimlik Doğrulama Dinleyicisi ve Veri Çekme (RULE 3)
+        onAuthStateChanged(auth, (u) => {
+            userSession = u;
+            if (userSession) {
+                // Bağlantı sağlandı rozetini güncelle
+                const connBadge = document.getElementById('conn-badge');
+                if (connBadge) {
+                    connBadge.className = "mt-2 inline-flex items-center gap-1.5 bg-green-500/20 text-green-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-green-500/30";
+                    connBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Bulut Bağlantısı Aktif`;
+                }
+                startRealtimeListeners();
+            }
+        });
+
+        function startRealtimeListeners() {
+            // Personel Verileri Dinleyicisi (RULE 1 & 2)
+            const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+            onSnapshot(personnelRef, (snapshot) => {
+                personnelData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderPersonnelList();
+                updateStats();
+            }, (error) => {
+                console.error("Personel veri hatası:", error);
+                showToast("Personel listesi yüklenemedi!", "error");
+            });
+
+            // Görev Verileri Dinleyicisi (RULE 1 & 2)
+            const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+            onSnapshot(tasksRef, (snapshot) => {
+                const oldTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                const newTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                totalRevenue = taskData.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.price || 0), 0);
+                
+                updateStats();
+                updateMainMapMarkers();
+                renderLiveFeed();
+
+                if (activeMobileUserId) {
+                    renderMobileApp();
+                    // Yeni bir görev atandığında çalışanın telefonunda bildirim animasyonunu oynat
+                    if (newTaskCount > oldTaskCount) {
+                        showMobileNotification();
+                    }
+                }
+            }, (error) => {
+                console.error("Görev veri hatası:", error);
+                showToast("Görevler yüklenemedi!", "error");
+            });
+        }
+
+        // --- GLOBAL PENCERE FONKSİYONLARI ---
+
+        window.performLogin = () => {
+            const userVal = document.getElementById('login-username').value.trim().toLowerCase();
+            const passVal = document.getElementById('login-password').value.trim();
+            const loginError = document.getElementById('login-error');
+            const loginBtn = document.getElementById('login-btn');
+            
+            if (!userSession) {
+                showToast("Veritabanı bağlantısı henüz kurulmadı. Lütfen Firebase'den 'Anonymous' girişini açın.", "error");
+                return;
+            }
+
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
+            loginBtn.disabled = true;
+
+            setTimeout(() => {
+                loginBtn.innerHTML = 'Sisteme Giriş Yap';
+                loginBtn.disabled = false;
+                
+                if(userVal === 'mesut' && passVal === '0852') {
+                    // YÖNETİCİ GİRİŞİ (Admin Ekranı)
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('top-nav').classList.remove('hidden');
+                    document.getElementById('main-content-area').classList.remove('hidden');
+                    
+                    document.getElementById('admin-panel').classList.remove('hidden');
+                    document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
+                    
+                    document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-user-tie"></i> Admin: Mesut`;
+                    
+                    initMaps();
+                    renderPersonnelList();
+                    updateStats();
+                    showToast("Yönetici girişi başarılı.");
+                } else {
+                    // PERSONEL GİRİŞ KONTROLÜ
+                    const person = personnelData.find(p => p.username === userVal && p.password === passVal);
+                    
+                    if(person) {
+                        activeMobileUserId = person.id;
+                        document.getElementById('active-mobile-user').innerText = person.name;
+                        
+                        document.getElementById('login-screen').classList.add('hidden');
+                        document.getElementById('top-nav').classList.remove('hidden');
+                        document.getElementById('main-content-area').classList.remove('hidden');
+                        
+                        document.getElementById('admin-panel').classList.add('hidden');
+                        document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
+                        
+                        document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
+                        
+                        renderMobileApp();
+                        showToast(`Hoş geldin, ${person.name}`);
+                    } else {
+                        loginError.classList.remove('hidden');
+                        showToast("Giriş bilgileri hatalı!", "error");
+                    }
+                }
+            }, 600);
+        };
+
+        window.logout = () => {
+            activeMobileUserId = null;
+            document.getElementById('main-content-area').classList.add('hidden');
+            document.getElementById('top-nav').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').classList.add('hidden');
+            
+            document.getElementById('admin-panel').classList.remove('hidden');
+            document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
+            showToast("Oturum kapatıldı.", "info");
+        };
+
+        // --- MAPS INIT ---
+        function initMaps() {
+            if (mainMap) return; 
+
+            const defaultLat = 37.1950;
+            const defaultLng = 40.5847;
+
+            mainMap = L.map('main-map').setView([defaultLat, defaultLng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(mainMap);
+
+            miniMap = L.map('mini-map').setView([defaultLat, defaultLng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+            
+            miniMapMarker = L.marker([defaultLat, defaultLng], {draggable: true}).addTo(miniMap);
+            
+            miniMapMarker.on('dragend', function (e) {
+                document.getElementById('task-lat').value = miniMapMarker.getLatLng().lat;
+                document.getElementById('task-lng').value = miniMapMarker.getLatLng().lng;
+            });
+
+            miniMap.on('click', function(e) {
+                miniMapMarker.setLatLng(e.latlng);
+                document.getElementById('task-lat').value = e.latlng.lat;
+                document.getElementById('task-lng').value = e.latlng.lng;
+            });
+
+            updateMainMapMarkers();
+        }
+
+        // --- YÖNETİCİ PANELİ (ADMIN) FONKSİYONLARI ---
+        
+        function updateStats() {
+            document.getElementById('stat-personnel').innerText = personnelData.length;
+            const openTasks = taskData.filter(t => t.status === 'open').length;
+            document.getElementById('stat-open').innerText = openTasks;
+            const closedTasks = taskData.filter(t => t.status === 'completed').length;
+            document.getElementById('stat-closed').innerText = closedTasks;
+            document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString('tr-TR') + ' ₺';
+        }
+
+        function renderLiveFeed() {
+            const feed = document.getElementById('live-feed');
+            feed.innerHTML = '';
+
+            let allFeedItems = [];
+            
+            taskData.filter(t => t.status === 'completed' && t.completedAt).forEach(t => {
+                const p = personnelData.find(pers => pers.id === t.pId);
+                allFeedItems.push({
+                    time: t.completedAt,
+                    title: "Servis Tamamlandı",
+                    desc: `${p ? p.name : 'Personel'}, ${t.customer} işlemini bitirdi. Not: ${t.note || '-'}`,
+                    type: "success",
+                    price: t.price
+                });
+            });
+            
+            taskData.filter(t => t.status === 'open' && t.createdAt).forEach(t => {
+                const p = personnelData.find(pers => pers.id === t.pId);
+                allFeedItems.push({
+                    time: t.createdAt,
+                    title: "Görev Atandı",
+                    desc: `${p ? p.name : 'Personel'} personeline ${t.customer} için görev verildi.`,
+                    type: "new",
+                    price: 0
+                });
+            });
+            
+            allFeedItems.sort((a,b) => b.time - a.time);
+            
+            if (allFeedItems.length === 0) {
+                feed.innerHTML = '<p class="text-xs text-gray-500 text-center mt-4">Henüz bir hareket yok.</p>';
+                return;
+            }
+            
+            allFeedItems.forEach(item => {
+                const dateObj = new Date(item.time);
+                const timeStr = dateObj.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
+                
+                let color = item.type === 'new' ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50';
+                let icon = item.type === 'new' ? '<i class="fa-solid fa-paper-plane text-blue-500"></i>' : '<i class="fa-solid fa-check-double text-green-500"></i>';
+                let priceHtml = item.price > 0 ? `<div class="mt-1 inline-block bg-green-200 text-green-800 text-[10px] font-bold px-2 py-0.5 rounded">Tahsilat: ${item.price} ₺</div>` : '';
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `p-2 border-l-4 rounded shadow-sm text-sm ${color}`;
+                itemDiv.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-bold text-gray-800 text-xs flex items-center gap-1">${icon} ${item.title}</span>
+                        <span class="text-[10px] text-gray-500">${timeStr}</span>
+                    </div>
+                    <p class="text-xs text-gray-600">${item.desc}</p>
+                    ${priceHtml}
+                `;
+                feed.appendChild(itemDiv);
+            });
+        }
+
+        function renderPersonnelList() {
+            const list = document.getElementById('personnel-list');
+            const select = document.getElementById('task-assignee');
+            
+            list.innerHTML = '';
+            select.innerHTML = '';
+
+            if(personnelData.length === 0) {
+                list.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">Henüz personel eklenmedi.</p>`;
+                select.innerHTML = `<option value="">Önce personel ekleyin</option>`;
+                return;
+            }
+
+            personnelData.forEach(p => {
+                let statusColor = p.status === 'Bekliyor' ? 'bg-gray-400' : 'bg-green-500';
+                list.innerHTML += `
+                    <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-gray-100">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold uppercase">
+                                ${p.name.charAt(0)}
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-gray-800">${p.name}</p>
+                                <p class="text-[10px] text-gray-500 flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full ${statusColor}"></span> ${p.status}
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="deletePersonnel('${p.id}')" class="text-red-400 hover:text-red-600 px-2 py-1"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                `;
+                select.innerHTML += `<option value="${p.id}">${p.name} (${p.status})</option>`;
+            });
+
+            updateMainMapMarkers();
+        }
+
+        function updateMainMapMarkers() {
+            if(!mainMap) return;
+
+            taskMarkers.forEach(m => mainMap.removeLayer(m));
+            personnelMarkers.forEach(m => mainMap.removeLayer(m));
+            taskMarkers = [];
+            personnelMarkers = [];
+
+            taskData.filter(t => t.status === 'open').forEach(task => {
+                const marker = L.marker([task.lat, task.lng], {icon: redPinIcon}).addTo(mainMap);
+                marker.bindPopup(`<b>${task.customer}</b><br>${task.detail}`);
+                taskMarkers.push(marker);
+            });
+
+            personnelData.forEach(p => {
+                const marker = L.marker([p.lat, p.lng], {icon: bluePinIcon}).addTo(mainMap);
+                marker.bindPopup(`<b>${p.name}</b><br>${p.status}`);
+                personnelMarkers.push(marker);
+            });
+        }
+
+        // --- PERSONEL EKLEME/SİLME ---
+        window.openAddPersonnelModal = () => document.getElementById('add-personnel-modal').classList.remove('hidden');
+        window.closeAddPersonnelModal = () => { 
+            document.getElementById('add-personnel-modal').classList.add('hidden');
+            document.getElementById('new-p-name').value = '';
+            document.getElementById('new-p-username').value = '';
+            document.getElementById('new-p-pass').value = '';
+        };
+        
+        window.saveNewPersonnel = async () => {
+            const name = document.getElementById('new-p-name').value.trim();
+            const user = document.getElementById('new-p-username').value.toLowerCase().trim();
+            const pass = document.getElementById('new-p-pass').value.trim();
+            const btn = document.getElementById('btn-save-personnel');
+            
+            if(!name || !user || !pass) { 
+                showToast("Lütfen tüm alanları doldurun.", "error"); 
+                return; 
+            }
+            if(!userSession) return;
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
+            btn.disabled = true;
+
+            try {
+                const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+                await addDoc(personnelRef, {
+                    name: name,
+                    username: user,
+                    password: pass,
+                    status: "Bekliyor",
+                    lat: 37.1950 + (Math.random() * 0.01 - 0.005), 
+                    lng: 40.5847 + (Math.random() * 0.01 - 0.005)
+                });
+                window.closeAddPersonnelModal();
+                showToast(`${name} başarıyla sisteme eklendi.`);
+            } catch (error) {
+                console.error(error);
+                showToast("Personel eklenirken bulut hatası oluştu!", "error");
+            } finally {
+                btn.innerHTML = 'Personeli Kaydet';
+                btn.disabled = false;
+            }
+        };
+
+        window.deletePersonnel = async (id) => {
+            if(!userSession) return;
+            
+            showConfirm("Personeli tamamen silmek istediğinize emin misiniz?", async () => {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'personnel', id));
+                    showToast("Personel başarıyla silindi.", "info");
+                } catch(error) {
+                    console.error("Silme hatası:", error);
+                    showToast("Silme işlemi başarısız!", "error");
+                }
+            });
+        };
+
+        // --- GÖREV ATAMA (ADMIN) ---
+        window.openNewTaskModal = () => {
+            if(personnelData.length === 0) { 
+                showToast("Lütfen önce bir saha çalışanı ekleyin!", "error"); 
+                return; 
+            }
+            document.getElementById('new-task-modal').classList.remove('hidden');
+            setTimeout(() => miniMap.invalidateSize(), 200);
+        };
+        
+        window.closeNewTaskModal = () => {
+            document.getElementById('new-task-modal').classList.add('hidden');
+            document.getElementById('task-customer').value = '';
+            document.getElementById('task-phone').value = '';
+            document.getElementById('task-detail').value = '';
+            document.getElementById('task-address').value = '';
+            document.getElementById('map-search-input').value = '';
+        };
+
+        window.assignTask = async () => {
+            if(!userSession) return;
+            
+            const pId = document.getElementById('task-assignee').value; 
+            const customer = document.getElementById('task-customer').value.trim() || "Bilinmeyen Müşteri";
+            const phone = document.getElementById('task-phone').value.trim() || "";
+            const detail = document.getElementById('task-detail').value.trim() || "Arıza Kontrolü";
+            const address = document.getElementById('task-address').value.trim();
+            const lat = parseFloat(document.getElementById('task-lat').value);
+            const lng = parseFloat(document.getElementById('task-lng').value);
+            const btn = document.getElementById('btn-assign-task');
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gönderiliyor...';
+            btn.disabled = true;
+
+            try {
+                const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+                await addDoc(tasksRef, {
+                    pId: pId,
+                    customer: customer,
+                    phone: phone,
+                    detail: detail,
+                    address: address,
+                    lat: lat,
+                    lng: lng,
+                    status: 'open',
+                    createdAt: Date.now()
+                });
+
+                const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', pId);
+                await updateDoc(personRef, { status: "Sahada" });
+
+                window.closeNewTaskModal();
+                showToast("Görev oluşturuldu ve çalışana gönderildi!");
+            } catch (error) {
+                console.error(error);
+                showToast("Görev gönderilirken hata oluştu!", "error");
+            } finally {
+                btn.innerHTML = 'Görevi Gönder (Bildirim)';
+                btn.disabled = false;
+            }
+        };
+
+        // Harita Büyütme
+        let isMapFullscreen = false;
+        window.toggleMapFullscreen = () => {
+            const container = document.getElementById('mini-map-container');
+            const mapDiv = document.getElementById('mini-map');
+            const closeBtn = document.getElementById('close-fullscreen-btn');
+            isMapFullscreen = !isMapFullscreen;
+
+            if (isMapFullscreen) {
+                container.classList.add('fixed', 'inset-4', 'z-[2000]', 'shadow-2xl', 'p-2', 'rounded-xl');
+                mapDiv.classList.remove('h-32');
+                mapDiv.classList.add('h-full');
+                closeBtn.classList.remove('hidden');
+            } else {
+                container.classList.remove('fixed', 'inset-4', 'z-[2000]', 'shadow-2xl', 'p-2', 'rounded-xl');
+                mapDiv.classList.remove('h-full');
+                mapDiv.classList.add('h-32');
+                closeBtn.classList.add('hidden');
+            }
+            setTimeout(() => miniMap.invalidateSize(), 300);
+        };
+
+        // Adres Arama
+        window.searchAddress = async (event) => {
+            const query = document.getElementById('map-search-input').value.trim();
+            if(!query) return;
+            
+            const btn = event.currentTarget;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await response.json();
+                
+                if(data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    
+                    miniMap.flyTo([lat, lon], 16);
+                    miniMapMarker.setLatLng([lat, lon]);
+                    
+                    document.getElementById('task-lat').value = lat;
+                    document.getElementById('task-lng').value = lon;
+                    showToast("Konum başarıyla güncellendi.");
+                } else {
+                    showToast("Adres bulunamadı!", "error");
+                }
+            } catch(e) {
+                console.error("Adres arama hatası:", e);
+                showToast("Arama başarısız!", "error");
+            } finally {
+                btn.innerHTML = originalHtml;
+            }
+        };
+
+        // --- MOBİL UYGULAMA (PERSONEL) FONKSİYONLARI ---
+
+        function renderMobileApp() {
+            const container = document.getElementById('mobile-task-list');
+            const emptyState = document.getElementById('mobile-empty-state');
+            
+            const myTasks = taskData.filter(t => t.pId === activeMobileUserId && t.status === 'open').sort((a,b) => b.createdAt - a.createdAt);
+
+            Array.from(container.children).forEach(child => {
+                if(child.id !== 'mobile-notification' && child.id !== 'mobile-empty-state') {
+                    child.remove();
+                }
+            });
+
+            if (myTasks.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                
+                myTasks.forEach(task => {
+                    const addressHtml = task.address ? `<p class="text-[10px] text-gray-600 mt-2 mb-1 border-l-2 border-blue-500 pl-2 bg-blue-50 py-1"><i class="fa-solid fa-location-dot mr-1 text-blue-500"></i>${task.address}</p>` : '';
+                    const phoneHtml = task.phone ? `<div class="mb-2"><a href="tel:${task.phone}" class="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full"><i class="fa-solid fa-phone"></i> ${task.phone}</a></div>` : '';
+                    
+                    const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white border border-gray-200 rounded-lg shadow-sm p-3 border-l-4 border-l-[#f59e0b] mb-3 text-left";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded">Yeni Görev</span>
+                            <a href="${mapUrl}" target="_blank" class="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1 transition-colors"><i class="fa-solid fa-location-arrow"></i> Yol Tarifi</a>
+                        </div>
+                        <h4 class="font-bold text-gray-800 text-sm mb-1">${task.customer}</h4>
+                        ${phoneHtml}
+                        <p class="text-xs text-gray-500 mb-2">${task.detail}</p>
+                        ${addressHtml}
+                        
+                        <button onclick="openCompleteModal('${task.id}', '${task.customer.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 text-white text-xs font-bold py-2 mt-2 rounded shadow hover:bg-blue-700 transition">
+                            İŞİ TAMAMLA VE KAPAT
+                        </button>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        }
+
+        window.showMobileNotification = () => {
+            const notif = document.getElementById('mobile-notification');
+            notif.classList.remove('hidden');
+            setTimeout(() => {
+                notif.classList.add('hidden');
+            }, 4000);
+        };
+
+        window.openCompleteModal = (taskId, customerName) => {
+            document.getElementById('complete-task-id').value = taskId;
+            document.getElementById('complete-customer-name').innerText = customerName;
+            document.getElementById('complete-task-modal').classList.remove('hidden');
+            document.getElementById('complete-note').value = '';
+            document.getElementById('complete-price').value = '';
+        };
+
+        window.closeCompleteModal = () => {
+            document.getElementById('complete-task-modal').classList.add('hidden');
+        };
+
+        window.submitCompletedTask = async () => {
+            if(!userSession) return;
+
+            const taskId = document.getElementById('complete-task-id').value; 
+            const note = document.getElementById('complete-note').value.trim();
+            const price = parseFloat(document.getElementById('complete-price').value) || 0;
+            const btn = document.getElementById('btn-submit-task');
+
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İletiliyor...';
+            btn.disabled = true;
+
+            try {
+                const taskRef = doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId);
+                await updateDoc(taskRef, {
+                    status: 'completed',
+                    note: note,
+                    price: price,
+                    completedAt: Date.now()
+                });
+
+                const currentTask = taskData.find(t => t.id === taskId);
+                if(currentTask) {
+                    const hasMoreTasks = taskData.some(t => t.pId === currentTask.pId && t.status === 'open' && t.id !== taskId);
+                    if(!hasMoreTasks) {
+                        const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', currentTask.pId);
+                        await updateDoc(personRef, { status: "Bekliyor" });
+                    }
+                }
+
+                window.closeCompleteModal();
+                showToast("İş başarıyla merkeze iletildi.");
+            } catch (error) {
+                console.error(error);
+                showToast("Süreç kaydedilemedi!", "error");
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Admine Gönder';
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
