@@ -44,6 +44,9 @@
                 </div>
                 <h2 class="text-2xl font-bold text-white tracking-wide">GÖKHAN MAKİNA</h2>
                 <p class="text-blue-100 text-sm mt-1">Saha Personel Yönetimi</p>
+                <div id="conn-badge" class="mt-2 inline-flex items-center gap-1.5 bg-yellow-500/20 text-yellow-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-yellow-500/30">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> Bulut Bağlantısı Kuruluyor...
+                </div>
             </div>
             <div class="p-8">
                 <div id="login-error" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-3 text-sm mb-4">
@@ -339,12 +342,59 @@
         </div>
     </div>
 
-    <!-- UYGULAMA MANTIĞI (LOCAL STORAGE) -->
-    <script>
-        // --- VERİ LİSTELERİ (Tarayıcı Hafızasından Çekilir) ---
-        let personnelData = JSON.parse(localStorage.getItem('gokhan_personnel')) || [];
-        let taskData = JSON.parse(localStorage.getItem('gokhan_tasks')) || [];
-        let totalRevenue = parseFloat(localStorage.getItem('gokhan_revenue')) || 0;
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="hidden fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-100">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xl mb-4 mx-auto animate-bounce">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <p id="confirm-modal-text" class="text-gray-700 text-sm font-semibold"></p>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex gap-3 justify-end border-t border-gray-100">
+                <button id="confirm-cancel-btn" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 bg-white border border-gray-300 rounded-lg">Vazgeç</button>
+                <button id="confirm-ok-btn" class="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm">Evet, Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Toast Container -->
+    <div id="custom-toast-container" class="fixed top-4 right-4 z-[99999] space-y-2 pointer-events-none"></div>
+
+    <!-- FIREBASE & UYGULAMA MANTIĞI EKLENDİ -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase ve Canvas ID Yapılandırması
+        let app, auth, db, appId, userSession;
+        
+        // Kullanıcının gerçek Firebase bilgileri
+        const firebaseConfig = {
+          apiKey: "AIzaSyBZfRIh5ArL-WObbjh09XMa0y--2nvUyFI",
+          authDomain: "gokhan-makina.firebaseapp.com",
+          projectId: "gokhan-makina",
+          storageBucket: "gokhan-makina.firebasestorage.app",
+          messagingSenderId: "1088331719728",
+          appId: "1:1088331719728:web:58c5e78bb205164be279f5",
+          measurementId: "G-1WT7FVD1NY"
+        };
+
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            // Firebase uyuşmazlığı yaşamamak ve iki ayrı cihazın senkronize olması için sabit appId
+            appId = "gokhan-makina-v1"; 
+        } catch (error) {
+            console.error("Firebase config error:", error);
+        }
+
+        // --- VERİ LİSTELERİ ---
+        let personnelData = [];
+        let taskData = [];
+        let totalRevenue = 0;
         let activeMobileUserId = null;
 
         // Leaflet Map Değişkenleri
@@ -352,20 +402,151 @@
         let taskMarkers = []; 
         let personnelMarkers = []; 
 
-        // Verileri Tarayıcıya Kaydetme
-        function saveData() {
-            localStorage.setItem('gokhan_personnel', JSON.stringify(personnelData));
-            localStorage.setItem('gokhan_tasks', JSON.stringify(taskData));
-            localStorage.setItem('gokhan_revenue', totalRevenue.toString());
+        // Premium Özel Marker Tasarımları (DIV Icon & SVG)
+        const bluePinIcon = L.divIcon({
+            className: 'custom-pin-blue',
+            html: `
+                <div class="relative flex items-center justify-center">
+                    <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-blue-400 opacity-75"></span>
+                    <div class="relative w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg"></div>
+                </div>
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const redPinIcon = L.divIcon({
+            className: 'custom-pin-red',
+            html: `
+                <div class="relative flex items-center justify-center">
+                    <div class="w-8 h-8 text-red-600 drop-shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                            <path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            `,
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        // --- ANİMASYONLU TOAST VE CONFIRM SİSTEMİ (ÖZEL) ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('custom-toast-container');
+            const toast = document.createElement('div');
+            toast.className = `transform translate-y-2 opacity-0 transition-all duration-300 pointer-events-auto p-4 rounded-xl shadow-xl flex items-center gap-3 text-sm font-semibold text-white ${
+                type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+            }`;
+            
+            const icon = type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-xmark' : 'fa-circle-info';
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
         }
 
-        // Saat Güncelleme
-        setInterval(() => {
-            const now = new Date();
-            document.getElementById('current-time').innerText = now.toLocaleTimeString('tr-TR', {hour: '2-digit', minute:'2-digit'});
-        }, 1000);
+        function showConfirm(message, callback) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const text = document.getElementById('confirm-modal-text');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            const okBtn = document.getElementById('confirm-ok-btn');
+            
+            text.innerText = message;
+            modal.classList.remove('hidden');
+            
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+            };
+            
+            okBtn.onclick = () => {
+                callback();
+                cleanup();
+            };
+            cancelBtn.onclick = () => {
+                cleanup();
+            };
+        }
 
-        // --- GLOBAL FONKSİYONLAR ---
+        // Kimlik Doğrulama (Zorunlu Güvenlik Kuralı - RULE 3)
+        const initAuth = async () => {
+            if (!auth) return;
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+                showToast("Bulut kimlik doğrulama başarısız!", "error");
+            }
+        };
+        initAuth();
+
+        // Kimlik Doğrulama Dinleyicisi ve Veri Çekme (RULE 3)
+        onAuthStateChanged(auth, (u) => {
+            userSession = u;
+            if (userSession) {
+                // Bağlantı sağlandı rozetini güncelle
+                const connBadge = document.getElementById('conn-badge');
+                if (connBadge) {
+                    connBadge.className = "mt-2 inline-flex items-center gap-1.5 bg-green-500/20 text-green-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-green-500/30";
+                    connBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Bulut Bağlantısı Aktif`;
+                }
+                startRealtimeListeners();
+            }
+        });
+
+        function startRealtimeListeners() {
+            // Personel Verileri Dinleyicisi (RULE 1 & 2)
+            const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+            onSnapshot(personnelRef, (snapshot) => {
+                personnelData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderPersonnelList();
+                updateStats();
+            }, (error) => {
+                console.error("Personel veri hatası:", error);
+                showToast("Personel listesi yüklenemedi!", "error");
+            });
+
+            // Görev Verileri Dinleyicisi (RULE 1 & 2)
+            const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+            onSnapshot(tasksRef, (snapshot) => {
+                const oldTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                taskData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                const newTaskCount = taskData.filter(t => t.status === 'open' && t.pId === activeMobileUserId).length;
+                
+                totalRevenue = taskData.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.price || 0), 0);
+                
+                updateStats();
+                updateMainMapMarkers();
+                renderLiveFeed();
+
+                if (activeMobileUserId) {
+                    renderMobileApp();
+                    // Yeni bir görev atandığında çalışanın telefonunda bildirim animasyonunu oynat
+                    if (newTaskCount > oldTaskCount) {
+                        showMobileNotification();
+                    }
+                }
+            }, (error) => {
+                console.error("Görev veri hatası:", error);
+                showToast("Görevler yüklenemedi!", "error");
+            });
+        }
+
+        // --- GLOBAL PENCERE FONKSİYONLARI ---
 
         window.performLogin = () => {
             const userVal = document.getElementById('login-username').value.trim().toLowerCase();
@@ -373,15 +554,20 @@
             const loginError = document.getElementById('login-error');
             const loginBtn = document.getElementById('login-btn');
             
+            if (!userSession) {
+                showToast("Veritabanı bağlantısı henüz kurulmadı. Lütfen bekleyin.", "error");
+                return;
+            }
+
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
-            loginError.classList.add('hidden');
+            loginBtn.disabled = true;
 
             setTimeout(() => {
-                loginBtn.innerHTML = '<span>Sisteme Giriş Yap</span>';
-
-                // YÖNETİCİ GİRİŞİ KONTROLÜ
+                loginBtn.innerHTML = 'Sisteme Giriş Yap';
+                loginBtn.disabled = false;
+                
                 if(userVal === 'mesut' && passVal === '0852') {
-                    
+                    // YÖNETİCİ GİRİŞİ (Admin Ekranı)
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('top-nav').classList.remove('hidden');
                     document.getElementById('main-content-area').classList.remove('hidden');
@@ -392,56 +578,34 @@
                     document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-user-tie"></i> Admin: Mesut`;
                     
                     initMaps();
-                    
-                    // Admin'i de listeye kaydet (Yoksa)
-                    if(!personnelData.some(p => p.username === 'mesut')) {
-                         personnelData.push({
-                            id: 'admin_1',
-                            name: "Mesut (Admin)",
-                            username: "mesut",
-                            password: "0852",
-                            status: "Yönetici",
-                            role: "admin",
-                            lat: 37.1950, 
-                            lng: 40.5847
-                        });
-                        saveData();
-                    }
-
                     renderPersonnelList();
-                    renderLiveFeed();
                     updateStats();
-                    return;
-                } 
-
-                // PERSONEL GİRİŞ KONTROLÜ
-                const person = personnelData.find(p => p.username === userVal && p.password === passVal);
-                
-                if(person) {
-                    if(person.role === 'admin') {
-                        document.getElementById('login-username').value = 'mesut';
-                        document.getElementById('login-password').value = '0852';
-                        window.performLogin();
-                        return;
-                    }
-
-                    activeMobileUserId = person.id;
-                    document.getElementById('active-mobile-user').innerText = person.name;
-                    
-                    document.getElementById('login-screen').classList.add('hidden');
-                    document.getElementById('top-nav').classList.remove('hidden');
-                    document.getElementById('main-content-area').classList.remove('hidden');
-                    
-                    document.getElementById('admin-panel').classList.add('hidden');
-                    document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
-                    
-                    document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
-                    
-                    renderMobileApp();
+                    showToast("Yönetici girişi başarılı.");
                 } else {
-                    loginError.classList.remove('hidden');
+                    // PERSONEL GİRİŞ KONTROLÜ
+                    const person = personnelData.find(p => p.username === userVal && p.password === passVal);
+                    
+                    if(person) {
+                        activeMobileUserId = person.id;
+                        document.getElementById('active-mobile-user').innerText = person.name;
+                        
+                        document.getElementById('login-screen').classList.add('hidden');
+                        document.getElementById('top-nav').classList.remove('hidden');
+                        document.getElementById('main-content-area').classList.remove('hidden');
+                        
+                        document.getElementById('admin-panel').classList.add('hidden');
+                        document.getElementById('mobile-panel').className = "flex w-full bg-[#2d3748] flex-col items-center justify-center p-4";
+                        
+                        document.getElementById('active-user-label').innerHTML = `<i class="fa-solid fa-helmet-safety"></i> Saha Personeli: ${person.name}`;
+                        
+                        renderMobileApp();
+                        showToast(`Hoş geldin, ${person.name}`);
+                    } else {
+                        loginError.classList.remove('hidden');
+                        showToast("Giriş bilgileri hatalı!", "error");
+                    }
                 }
-            }, 500);
+            }, 600);
         };
 
         window.logout = () => {
@@ -456,6 +620,7 @@
             
             document.getElementById('admin-panel').classList.remove('hidden');
             document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
+            showToast("Oturum kapatıldı.", "info");
         };
 
         // --- MAPS INIT ---
@@ -492,16 +657,11 @@
         // --- YÖNETİCİ PANELİ (ADMIN) FONKSİYONLARI ---
         
         function updateStats() {
-            // Sadece personelleri say (Admin hariç)
-            const pCount = personnelData.filter(p => p.role !== 'admin').length;
-            document.getElementById('stat-personnel').innerText = pCount;
-            
+            document.getElementById('stat-personnel').innerText = personnelData.length;
             const openTasks = taskData.filter(t => t.status === 'open').length;
             document.getElementById('stat-open').innerText = openTasks;
-            
             const closedTasks = taskData.filter(t => t.status === 'completed').length;
             document.getElementById('stat-closed').innerText = closedTasks;
-            
             document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString('tr-TR') + ' ₺';
         }
 
@@ -569,15 +729,13 @@
             list.innerHTML = '';
             select.innerHTML = '';
 
-            const filteredPersonnel = personnelData.filter(p => p.role !== 'admin');
-
-            if(filteredPersonnel.length === 0) {
+            if(personnelData.length === 0) {
                 list.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">Henüz personel eklenmedi.</p>`;
                 select.innerHTML = `<option value="">Önce personel ekleyin</option>`;
                 return;
             }
 
-            filteredPersonnel.forEach(p => {
+            personnelData.forEach(p => {
                 let statusColor = p.status === 'Bekliyor' ? 'bg-gray-400' : 'bg-green-500';
                 list.innerHTML += `
                     <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded border border-gray-100">
@@ -610,19 +768,13 @@
             personnelMarkers = [];
 
             taskData.filter(t => t.status === 'open').forEach(task => {
-                const marker = L.marker([task.lat, task.lng]).addTo(mainMap);
+                const marker = L.marker([task.lat, task.lng], {icon: redPinIcon}).addTo(mainMap);
                 marker.bindPopup(`<b>${task.customer}</b><br>${task.detail}`);
                 taskMarkers.push(marker);
             });
 
-            personnelData.filter(p => p.role !== 'admin').forEach(p => {
-                const customIcon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: `<div class="w-4 h-4 bg-blue-500 border-2 border-white rounded-full shadow-lg marker-pulse"></div>`,
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8]
-                });
-                const marker = L.marker([p.lat, p.lng], {icon: customIcon}).addTo(mainMap);
+            personnelData.forEach(p => {
+                const marker = L.marker([p.lat, p.lng], {icon: bluePinIcon}).addTo(mainMap);
                 marker.bindPopup(`<b>${p.name}</b><br>${p.status}`);
                 personnelMarkers.push(marker);
             });
@@ -637,52 +789,62 @@
             document.getElementById('new-p-pass').value = '';
         };
         
-        window.saveNewPersonnel = () => {
-            const name = document.getElementById('new-p-name').value;
+        window.saveNewPersonnel = async () => {
+            const name = document.getElementById('new-p-name').value.trim();
             const user = document.getElementById('new-p-username').value.toLowerCase().trim();
-            const pass = document.getElementById('new-p-pass').value;
+            const pass = document.getElementById('new-p-pass').value.trim();
             const btn = document.getElementById('btn-save-personnel');
             
-            if(!name || !user || !pass) { alert("Lütfen tüm alanları doldurun."); return; }
+            if(!name || !user || !pass) { 
+                showToast("Lütfen tüm alanları doldurun.", "error"); 
+                return; 
+            }
+            if(!userSession) return;
 
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
             btn.disabled = true;
 
-            setTimeout(() => {
-                personnelData.push({
-                    id: 'p_' + Date.now(),
+            try {
+                const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
+                await addDoc(personnelRef, {
                     name: name,
                     username: user,
                     password: pass,
                     status: "Bekliyor",
-                    role: "personnel",
                     lat: 37.1950 + (Math.random() * 0.01 - 0.005), 
                     lng: 40.5847 + (Math.random() * 0.01 - 0.005)
                 });
-                
-                saveData(); // Verileri kaydet
                 window.closeAddPersonnelModal();
-                renderPersonnelList();
-                updateStats();
-                
+                showToast(`${name} başarıyla sisteme eklendi.`);
+            } catch (error) {
+                console.error(error);
+                showToast("Personel eklenirken bulut hatası oluştu!", "error");
+            } finally {
                 btn.innerHTML = 'Personeli Kaydet';
                 btn.disabled = false;
-            }, 500);
+            }
         };
 
-        window.deletePersonnel = (id) => {
-            if(confirm("Personeli tamamen silmek istediğinize emin misiniz?")) {
-                personnelData = personnelData.filter(p => p.id !== id);
-                saveData();
-                renderPersonnelList();
-                updateStats();
-            }
+        window.deletePersonnel = async (id) => {
+            if(!userSession) return;
+            
+            showConfirm("Personeli tamamen silmek istediğinize emin misiniz?", async () => {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'personnel', id));
+                    showToast("Personel başarıyla silindi.", "info");
+                } catch(error) {
+                    console.error("Silme hatası:", error);
+                    showToast("Silme işlemi başarısız!", "error");
+                }
+            });
         };
 
         // --- GÖREV ATAMA (ADMIN) ---
         window.openNewTaskModal = () => {
-            const pCount = personnelData.filter(p => p.role !== 'admin').length;
-            if(pCount === 0) { alert("Lütfen önce personel ekleyin!"); return; }
+            if(personnelData.length === 0) { 
+                showToast("Lütfen önce bir saha çalışanı ekleyin!", "error"); 
+                return; 
+            }
             document.getElementById('new-task-modal').classList.remove('hidden');
             setTimeout(() => miniMap.invalidateSize(), 200);
         };
@@ -696,12 +858,14 @@
             document.getElementById('map-search-input').value = '';
         };
 
-        window.assignTask = () => {
-            const pId = document.getElementById('task-assignee').value;
-            const customer = document.getElementById('task-customer').value || "Bilinmeyen Müşteri";
-            const phone = document.getElementById('task-phone').value || "";
-            const detail = document.getElementById('task-detail').value || "Arıza Kontrolü";
-            const address = document.getElementById('task-address').value;
+        window.assignTask = async () => {
+            if(!userSession) return;
+            
+            const pId = document.getElementById('task-assignee').value; 
+            const customer = document.getElementById('task-customer').value.trim() || "Bilinmeyen Müşteri";
+            const phone = document.getElementById('task-phone').value.trim() || "";
+            const detail = document.getElementById('task-detail').value.trim() || "Arıza Kontrolü";
+            const address = document.getElementById('task-address').value.trim();
             const lat = parseFloat(document.getElementById('task-lat').value);
             const lng = parseFloat(document.getElementById('task-lng').value);
             const btn = document.getElementById('btn-assign-task');
@@ -709,9 +873,9 @@
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gönderiliyor...';
             btn.disabled = true;
 
-            setTimeout(() => {
-                taskData.push({
-                    id: 't_' + Date.now(),
+            try {
+                const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+                await addDoc(tasksRef, {
                     pId: pId,
                     customer: customer,
                     phone: phone,
@@ -723,24 +887,18 @@
                     createdAt: Date.now()
                 });
 
-                const person = personnelData.find(p => p.id === pId);
-                if(person) person.status = "Sahada";
+                const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', pId);
+                await updateDoc(personRef, { status: "Sahada" });
 
-                saveData();
                 window.closeNewTaskModal();
-                renderPersonnelList();
-                renderLiveFeed();
-                updateMainMapMarkers();
-                updateStats();
-
-                if(activeMobileUserId === pId) {
-                    renderMobileApp();
-                    showMobileNotification();
-                }
-
+                showToast("Görev oluşturuldu ve çalışana gönderildi!");
+            } catch (error) {
+                console.error(error);
+                showToast("Görev gönderilirken hata oluştu!", "error");
+            } finally {
                 btn.innerHTML = 'Görevi Gönder (Bildirim)';
                 btn.disabled = false;
-            }, 500);
+            }
         };
 
         // Harita Büyütme
@@ -767,7 +925,7 @@
 
         // Adres Arama
         window.searchAddress = async (event) => {
-            const query = document.getElementById('map-search-input').value;
+            const query = document.getElementById('map-search-input').value.trim();
             if(!query) return;
             
             const btn = event.currentTarget;
@@ -787,12 +945,13 @@
                     
                     document.getElementById('task-lat').value = lat;
                     document.getElementById('task-lng').value = lon;
+                    showToast("Konum başarıyla güncellendi.");
                 } else {
-                    alert("Adres bulunamadı. Lütfen daha belirgin yazın.");
+                    showToast("Adres bulunamadı!", "error");
                 }
             } catch(e) {
                 console.error("Adres arama hatası:", e);
-                alert("Arama sırasında bir hata oluştu.");
+                showToast("Arama başarısız!", "error");
             } finally {
                 btn.innerHTML = originalHtml;
             }
@@ -824,7 +983,7 @@
                     const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
 
                     const card = document.createElement('div');
-                    card.className = "bg-white border border-gray-200 rounded-lg shadow-sm p-3 border-l-4 border-l-[#f59e0b] mb-3";
+                    card.className = "bg-white border border-gray-200 rounded-lg shadow-sm p-3 border-l-4 border-l-[#f59e0b] mb-3 text-left";
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-2">
                             <span class="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded">Yeni Görev</span>
@@ -864,45 +1023,44 @@
             document.getElementById('complete-task-modal').classList.add('hidden');
         };
 
-        window.submitCompletedTask = () => {
+        window.submitCompletedTask = async () => {
+            if(!userSession) return;
+
             const taskId = document.getElementById('complete-task-id').value; 
-            const note = document.getElementById('complete-note').value;
+            const note = document.getElementById('complete-note').value.trim();
             const price = parseFloat(document.getElementById('complete-price').value) || 0;
             const btn = document.getElementById('btn-submit-task');
 
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İletiliyor...';
             btn.disabled = true;
 
-            setTimeout(() => {
-                const task = taskData.find(t => t.id === taskId);
-                if(task) {
-                    task.status = 'completed';
-                    task.note = note;
-                    task.price = price;
-                    task.completedAt = Date.now();
-                    
-                    totalRevenue += price;
+            try {
+                const taskRef = doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId);
+                await updateDoc(taskRef, {
+                    status: 'completed',
+                    note: note,
+                    price: price,
+                    completedAt: Date.now()
+                });
 
-                    const hasMoreTasks = taskData.some(t => t.pId === task.pId && t.status === 'open' && t.id !== taskId);
+                const currentTask = taskData.find(t => t.id === taskId);
+                if(currentTask) {
+                    const hasMoreTasks = taskData.some(t => t.pId === currentTask.pId && t.status === 'open' && t.id !== taskId);
                     if(!hasMoreTasks) {
-                        const person = personnelData.find(p => p.id === task.pId);
-                        if(person) person.status = "Bekliyor";
+                        const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', currentTask.pId);
+                        await updateDoc(personRef, { status: "Bekliyor" });
                     }
                 }
 
-                saveData(); // Verileri kaydet
                 window.closeCompleteModal();
-                
-                renderPersonnelList();
-                renderLiveFeed();
-                updateStats();
-                renderMobileApp();
-                
-                alert("İş başarıyla tamamlandı ve merkeze iletildi!");
-                
+                showToast("İş başarıyla merkeze iletildi.");
+            } catch (error) {
+                console.error(error);
+                showToast("Süreç kaydedilemedi!", "error");
+            } finally {
                 btn.innerHTML = '<i class="fa-solid fa-check"></i> Admine Gönder';
                 btn.disabled = false;
-            }, 500);
+            }
         };
     </script>
 </body>
