@@ -1,0 +1,1342 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Trophy, RotateCcw, Flag, CheckCircle2, AlertCircle, Volume2, VolumeX, Maximize, Minimize, Play, ArrowUp, MoveHorizontal } from 'lucide-react';
+
+const App = () => {
+  const [gameStarted, setGameStarted] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const [manualPosition, setManualPosition] = useState(0);
+  const [question, setQuestion] = useState(null);
+  const [feedback, setFeedback] = useState({ message: '', type: '' });
+  const [isFinished, setIsFinished] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  <!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gökhan Makina - Saha Ekip Yönetimi</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Leaflet JS (Harita için) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: 'Roboto', sans-serif; background-color: #f3f4f6; overflow: hidden; }
+        #map { height: 100%; width: 100%; z-index: 1; border-radius: 0.5rem; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        
+        /* Mobile phone mockup style */
+        .phone-mockup {
+            border: 12px solid #1f2937;
+            border-radius: 2rem;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            background-color: #fff;
+        }
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40%;
+            height: 24px;
+            background-color: #1f2937;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            z-index: 50;
+        }
+        
+        /* Pulse Animation for Map Marker */
+        .pulse-marker {
+            width: 20px;
+            height: 20px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        .pulse-marker::after {
+            content: "";
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border-radius: 50%;
+            border: 2px solid #3b82f6;
+            animation: pulse 1.5s linear infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        /* Toast Animation */
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-animate { animation: slideInRight 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- ========================================== -->
+    <!-- LOGIN EKRANI (GİRİŞ PANELİ) -->
+    <!-- ========================================== -->
+    <div id="login-screen" class="fixed inset-0 bg-[#1f2937] z-[9999] flex flex-col items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-blue-600 p-6 text-center">
+                <i class="fa-solid fa-gears text-yellow-400 text-4xl mb-2"></i>
+                <h2 class="text-white text-2xl font-bold tracking-wide">GÖKHAN MAKİNA</h2>
+                <p class="text-blue-200 text-sm mt-1">Saha Yönetim Sistemi</p>
+            </div>
+            <div class="p-6 space-y-5">
+                <div id="login-error" class="hidden bg-red-100 text-red-600 p-3 rounded text-sm font-medium flex items-center gap-2 border border-red-200">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Hatalı kullanıcı adı veya şifre!
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Kullanıcı Adı</label>
+                    <input type="text" id="login-username" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800" placeholder="admin veya personel adınız">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">Şifre</label>
+                    <input type="password" id="login-password" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-gray-800" placeholder="••••••••">
+                </div>
+                <button onclick="performLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition duration-200 shadow-md">
+                    Sisteme Giriş Yap
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav id="top-nav" class="bg-[#1f2937] text-white h-14 flex items-center justify-between px-6 shadow-md flex-shrink-0 z-50 hidden">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-gears text-[#f59e0b] text-xl"></i>
+            <span class="font-bold text-lg tracking-wide">GÖKHAN <span class="text-[#f59e0b]">MAKİNA</span> SAHA YÖNETİMİ</span>
+        </div>
+        <div class="flex items-center gap-4 text-sm">
+            <div class="flex items-center gap-2 bg-gray-700 px-3 py-1.5 rounded-full">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span id="current-time">12:47</span>
+            </div>
+            <div class="flex items-center gap-3 font-medium">
+                <span class="flex items-center gap-2"><i class="fa-solid fa-user-tie"></i> Admin Panel</span>
+                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded flex items-center gap-1 transition shadow"><i class="fa-solid fa-power-off"></i> Çıkış</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div id="main-content-area" class="flex flex-1 overflow-hidden hidden">
+        
+        <!-- ========================================== -->
+        <!-- SOL TARAF: ADMİN PANELİ (Harita ve Listeler) -->
+        <!-- ========================================== -->
+        <div id="admin-panel" class="w-full lg:w-2/3 flex flex-col h-full bg-gray-100 p-4 gap-4 overflow-y-auto custom-scrollbar relative">
+            
+            <!-- Toast Container (Admin İçin) -->
+            <div id="admin-toast-container" class="fixed top-20 left-4 z-50 flex flex-col gap-2"></div>
+
+            <div class="flex justify-between items-end">
+                <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-map-location-dot text-blue-600 mr-2"></i>Saha Durumu ve Personel İzleme</h2>
+                <button onclick="openNewTaskModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow flex items-center gap-2 text-sm font-medium transition">
+                    <i class="fa-solid fa-plus"></i> Yeni Servis Görevi Ata
+                </button>
+            </div>
+
+            <!-- Üst İstatistikler -->
+            <div class="grid grid-cols-4 gap-4">
+                <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-blue-500">
+                    <div class="text-xs text-gray-500 font-bold mb-1">SAHADAKİ PERSONEL</div>
+                    <div class="text-2xl font-bold text-gray-800" id="stat-personnel">2</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-yellow-500">
+                    <div class="text-xs text-gray-500 font-bold mb-1">AÇIK SERVİSLER</div>
+                    <div class="text-2xl font-bold text-gray-800" id="stat-open">1</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-green-500">
+                    <div class="text-xs text-gray-500 font-bold mb-1">TAMAMLANAN (BUGÜN)</div>
+                    <div class="text-2xl font-bold text-gray-800" id="stat-closed">3</div>
+                </div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border-l-4 border-purple-500">
+                    <div class="text-xs text-gray-500 font-bold mb-1">GÜNLÜK CİRO</div>
+                    <div class="text-2xl font-bold text-gray-800" id="stat-revenue">1.250 ₺</div>
+                </div>
+            </div>
+
+            <!-- Harita Alanı -->
+            <div class="bg-white p-1 rounded-lg shadow-sm h-64 md:h-80 flex-shrink-0 relative border border-gray-200">
+                <div id="map"></div>
+                <div class="absolute top-3 right-3 z-[1000] bg-white px-3 py-1.5 rounded shadow text-xs font-bold border border-gray-200 flex flex-col gap-1">
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-blue-500"></div> Personel Konumu</div>
+                    <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full bg-red-500"></div> Bekleyen Servis</div>
+                </div>
+            </div>
+
+            <!-- Alt İki Kolon: Personel Yönetimi ve Servis Listesi -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 flex-1 min-h-0">
+                
+                <!-- Personel Listesi -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+                    <div class="p-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center rounded-t-lg">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fa-solid fa-users text-gray-500 mr-2"></i>Personel Yönetimi</h3>
+                        <button onclick="openModal('add-personnel-modal')" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded font-medium transition">
+                            <i class="fa-solid fa-user-plus"></i> Ekle
+                        </button>
+                    </div>
+                    <div class="p-0 overflow-y-auto custom-scrollbar flex-1">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                                <tr class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    <th class="p-3">Personel</th>
+                                    <th class="p-3">Durum</th>
+                                    <th class="p-3 text-right">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-600 divide-y divide-gray-100" id="personnel-list-table">
+                                <!-- JS ile doldurulacak -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Servis Kayıtları Listesi (Ciro Takibi) -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+                    <div class="p-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center rounded-t-lg">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fa-solid fa-clipboard-list text-gray-500 mr-2"></i>Canlı Servis Akışı</h3>
+                    </div>
+                    <div class="p-0 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50">
+                        <div id="service-feed" class="p-3 space-y-3">
+                            <!-- JS ile doldurulacak -->
+                            <div class="text-center text-xs text-gray-400 py-4">Henüz servis hareketi yok.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ========================================== -->
+        <!-- SAĞ TARAF: PERSONEL MOBİL UYGULAMA SİMÜLASYONU -->
+        <!-- ========================================== -->
+        <div id="mobile-panel" class="hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]">
+            <div class="text-center mb-4">
+                <h3 class="text-white font-bold text-lg"><i class="fa-solid fa-mobile-screen-button mr-2"></i>Personel Mobil Ekranı</h3>
+                <p class="text-gray-400 text-xs">Seçili Personel: <span id="active-mobile-user" class="text-yellow-400 font-bold">Ahmet Yılmaz</span></p>
+            </div>
+
+            <!-- Telefon Çerçevesi -->
+            <div class="phone-mockup w-[320px] h-[600px] flex flex-col relative bg-gray-100">
+                <div class="phone-notch"></div>
+                
+                <!-- Telefon Status Bar -->
+                <div class="h-8 bg-[#2563eb] w-full flex justify-between items-center px-4 text-white text-[10px] font-bold pt-1 z-40 relative">
+                    <span id="phone-time">12:47</span>
+                    <div class="flex gap-1.5">
+                        <i class="fa-solid fa-signal"></i>
+                        <i class="fa-solid fa-wifi"></i>
+                        <i class="fa-solid fa-battery-full"></i>
+                    </div>
+                </div>
+
+                <!-- Mobil Uygulama Header -->
+                <div class="bg-[#2563eb] text-white p-4 shadow flex justify-between items-center shrink-0">
+                    <div>
+                        <div class="text-xs opacity-80">Gökhan Makina - Saha</div>
+                        <div class="font-bold text-sm">İş Listem</div>
+                    </div>
+                    <button onclick="logout()" title="Çıkış Yap" class="w-8 h-8 bg-white/20 hover:bg-red-500 rounded-full flex items-center justify-center transition">
+                        <i class="fa-solid fa-power-off"></i>
+                    </button>
+                </div>
+
+                <!-- Mobil Uygulama İçerik -->
+                <div class="flex-1 overflow-y-auto p-3 custom-scrollbar flex flex-col gap-3 relative" id="mobile-task-list">
+                    
+                    <!-- Bildirim Overlay (Yeni İş Geldiğinde) -->
+                    <div id="mobile-notification" class="absolute top-2 left-2 right-2 bg-green-500 text-white p-3 rounded-lg shadow-lg z-50 transform -translate-y-[150%] transition-transform duration-300 flex items-center gap-3">
+                        <i class="fa-solid fa-bell text-xl animate-bounce"></i>
+                        <div class="text-sm">
+                            <div class="font-bold">Yeni Görev Atandı!</div>
+                            <div class="text-xs opacity-90">Haritadan konumu görebilirsiniz.</div>
+                        </div>
+                    </div>
+
+                    <!-- Boş Durum -->
+                    <div id="mobile-empty-state" class="flex-1 flex flex-col items-center justify-center text-gray-400 h-full mt-20">
+                        <i class="fa-regular fa-face-smile-wink text-4xl mb-2"></i>
+                        <p class="text-sm">Şu an bekleyen göreviniz yok.</p>
+                    </div>
+
+                    <!-- Görevler JS ile buraya eklenecek -->
+                </div>
+                
+                <!-- Alt Menü -->
+                <div class="bg-white border-t border-gray-200 flex justify-around p-2 shrink-0 pb-4">
+                    <button class="flex flex-col items-center text-blue-600"><i class="fa-solid fa-list-check text-lg"></i><span class="text-[10px] mt-1 font-medium">Görevler</span></button>
+                    <button class="flex flex-col items-center text-gray-400 hover:text-blue-600"><i class="fa-solid fa-map text-lg"></i><span class="text-[10px] mt-1 font-medium">Harita</span></button>
+                    <button class="flex flex-col items-center text-gray-400 hover:text-blue-600"><i class="fa-solid fa-gear text-lg"></i><span class="text-[10px] mt-1 font-medium">Ayarlar</span></button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODALLAR (Açılır Pencereler) -->
+    <!-- ========================================== -->
+
+    <!-- Modal: Yeni Personel Ekle -->
+    <div id="add-personnel-modal" class="fixed inset-0 bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden animate-[slideInRight_0.2s_ease-out]">
+            <div class="bg-gray-800 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold"><i class="fa-solid fa-user-plus mr-2"></i>Yeni Personel Ekle</h3>
+                <button onclick="closeModal('add-personnel-modal')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Ad Soyad</label>
+                    <input type="text" id="new-personnel-name" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Mehmet Demir">
+                </div>
+                
+                <!-- KULLANICI ADI VE ŞİFRE BELİRLEME ALANI EKLENDİ -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Sisteme Giriş Adı <span class="text-red-500">*</span></label>
+                        <input type="text" id="new-personnel-user" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: mehmet">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">Giriş Şifresi <span class="text-red-500">*</span></label>
+                        <input type="text" id="new-personnel-pass" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: 1234">
+                    </div>
+                </div>
+
+            </div>
+            <div class="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeModal('add-personnel-modal')" class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded transition">İptal</button>
+                <button onclick="addPersonnel()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition shadow">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Yeni Görev Ata (Admin) -->
+    <div id="new-task-modal" class="fixed inset-0 bg-black/60 z-[100] hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden animate-[slideInRight_0.2s_ease-out]">
+            <div class="bg-blue-600 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold"><i class="fa-solid fa-location-arrow mr-2"></i>Yeni Servis Görevi Oluştur</h3>
+                <button onclick="closeModal('new-task-modal')" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Görevlendirilecek Personel</label>
+                    <select id="task-assignee" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                        <!-- JS ile doldurulacak -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Müşteri / Firma Adı</label>
+                    <input type="text" id="task-customer" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Can Tekstil A.Ş.">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">İletişim Numarası (Telefon)</label>
+                    <input type="tel" id="task-phone" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: 0555 123 45 67">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Arıza / İşlem Detayı</label>
+                    <textarea id="task-detail" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Dikiş makinesi motor arızası..."></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Açık Adres (İsteğe Bağlı)</label>
+                    <textarea id="task-address" rows="1" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="Örn: Tepebaşı Mah. Hastane Cad. No:12..."></textarea>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <label class="block text-xs font-bold text-gray-700">Haritadan Konum Seçin</label>
+                        <button onclick="toggleMapFullscreen()" class="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded font-bold transition flex items-center gap-1">
+                            <i class="fa-solid fa-expand"></i> Büyüt
+                        </button>
+                    </div>
+                    
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" id="map-search-input" class="flex-1 border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" placeholder="Açık adres veya mekan ara...">
+                        <button onclick="searchAddress(event)" class="bg-gray-800 hover:bg-gray-900 text-white px-3 py-1.5 rounded text-xs transition min-w-[60px]">
+                            <i class="fa-solid fa-magnifying-glass"></i> Ara
+                        </button>
+                    </div>
+
+                    <div id="mini-map-container" class="relative w-full transition-all duration-300 bg-white">
+                        <button id="close-fullscreen-btn" onclick="toggleMapFullscreen()" class="hidden absolute top-4 right-4 z-[2000] bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow-lg hover:bg-red-700 flex items-center gap-2">
+                            <i class="fa-solid fa-compress"></i> Küçült
+                        </button>
+                        <div id="mini-map" class="w-full h-32 border border-gray-300 rounded z-10"></div>
+                        <!-- Arka planda koordinatları tutmak için gizli inputlar -->
+                        <input type="hidden" id="task-lat" value="37.1950">
+                        <input type="hidden" id="task-lng" value="40.5847">
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-1">Pini sürükleyin veya haritaya tıklayın.</p>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeModal('new-task-modal')" class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded transition">İptal</button>
+                <button onclick="assignTask()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition shadow">Görevi Gönder (Bildirim)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: İşi Tamamla (Personel Mobil İçin) -->
+    <div id="complete-task-modal" class="fixed inset-0 bg-black/60 z-[200] hidden items-center justify-center backdrop-blur-sm lg:absolute lg:inset-0 lg:rounded-2xl">
+        <!-- Not: lg:absolute özelliği sayesinde mobil tasarımın (telefon çerçevesi) içinde gibi davranmasını sağlıyoruz -->
+        <div class="bg-white rounded-xl shadow-2xl w-[90%] max-w-sm overflow-hidden relative">
+            <div class="bg-green-600 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-check-double mr-2"></i>Servisi Tamamla</h3>
+                <button onclick="closeModal('complete-task-modal')" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <input type="hidden" id="complete-task-id">
+                
+                <div class="bg-blue-50 p-2 rounded border border-blue-100 mb-2">
+                    <div class="text-[10px] text-blue-600 font-bold uppercase">Müşteri</div>
+                    <div class="text-sm font-bold text-gray-800" id="complete-task-customer">Müşteri Adı</div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Yapılan İşlem Açıklaması <span class="text-red-500">*</span></label>
+                    <textarea id="complete-desc" rows="3" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-green-500" placeholder="Motor kömürü değişti, yağlama yapıldı..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">Alınan Servis Ücreti (TL) <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-turkish-lira-sign text-gray-400 text-sm"></i>
+                        </div>
+                        <input type="number" id="complete-price" class="w-full border border-gray-300 rounded py-2 pl-8 pr-3 text-sm focus:outline-none focus:border-green-500 font-bold text-green-700" placeholder="500">
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-3 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeModal('complete-task-modal')" class="px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition">İptal</button>
+                <button onclick="submitCompletedTask()" class="px-4 py-2 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded transition shadow flex items-center gap-1">
+                    <i class="fa-solid fa-paper-plane"></i> Admine Gönder
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- DATA ---
+        // Personel Listesi
+        let personnelData = [];
+
+        // Görev Listesi
+        let taskData = [];
+        let totalRevenue = 0; // Başlangıç cirosu
+
+        // Aktif Mobil Kullanıcı (Simülasyon için 1. personeli seçiyoruz)
+        let activeMobileUserId = null;
+
+        // Leaflet Map Variables
+        let map;
+        let markers = {};
+        let taskMarkers = {};
+        
+        // Mini Harita Değişkenleri
+        let miniMap;
+        let miniMapMarker;
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            updateTime();
+            setInterval(updateTime, 1000);
+            
+            renderPersonnelList();
+            updateStats();
+        });
+
+        // Saati Güncelle
+        function updateTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('current-time').innerText = timeStr;
+            document.getElementById('phone-time').innerText = timeStr;
+        }
+
+        // --- MAP FUNCTIONS ---
+        function initMap() {
+            // Kızıltepe Merkez Koordinatları
+            map = L.map('map').setView([37.1930, 40.5855], 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Mevcut personeli haritada göster
+            personnelData.forEach(p => {
+                updatePersonnelMarker(p);
+            });
+        }
+
+        function updatePersonnelMarker(person) {
+            if (markers[person.id]) {
+                markers[person.id].setLatLng([person.lat, person.lng]);
+            } else {
+                // Özel CSS animasyonlu icon (Mavi nokta)
+                const customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div class="pulse-marker" title="${person.name}"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                markers[person.id] = L.marker([person.lat, person.lng], {icon: customIcon})
+                    .addTo(map)
+                    .bindPopup(`<b>${person.name}</b><br>Durum: ${person.status}`);
+            }
+        }
+
+        // --- ADMIN PANEL FUNCTIONS ---
+        
+        function renderPersonnelList() {
+            const tbody = document.getElementById('personnel-list-table');
+            const select = document.getElementById('task-assignee');
+            
+            tbody.innerHTML = '';
+            select.innerHTML = '';
+
+            personnelData.forEach(p => {
+                // Tablo satırı
+                const statusBadge = p.status === 'Sahada' 
+                    ? `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">Sahada (Meşgul)</span>`
+                    : `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-[10px] font-bold">Boşta (Bekliyor)</span>`;
+                
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition";
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-800 flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px]"><i class="fa-solid fa-user text-gray-500"></i></div>
+                        ${p.name}
+                    </td>
+                    <td class="p-3">${statusBadge}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="simulatePersonnelMovement(${p.id})" title="Konumu Güncelle" class="text-gray-400 hover:text-blue-500 transition"><i class="fa-solid fa-location-crosshairs"></i></button>
+                        <button onclick="removePersonnel(${p.id})" class="text-gray-400 hover:text-red-500 ml-2 transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Select option (Görev atama modalı için)
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.text = `${p.name} (${p.status})`;
+                select.appendChild(option);
+            });
+            
+            updateStats();
+        }
+
+        function addPersonnel() {
+            const nameInput = document.getElementById('new-personnel-name').value;
+            const userInput = document.getElementById('new-personnel-user').value;
+            const passInput = document.getElementById('new-personnel-pass').value;
+            
+            if(!nameInput || !userInput || !passInput) return alert("Lütfen Ad, Giriş Adı ve Şifre kısımlarını eksiksiz doldurun.");
+
+            const newId = personnelData.length ? Math.max(...personnelData.map(p=>p.id)) + 1 : 1;
+            
+            // Kızıltepe civarında rastgele bir başlangıç noktası
+            const rLat = 37.19 + (Math.random() * 0.01);
+            const rLng = 40.58 + (Math.random() * 0.01);
+
+            personnelData.push({
+                id: newId,
+                name: nameInput,
+                user: userInput,  // Personelin sisteme giriş adı
+                pass: passInput,  // Personelin şifresi
+                status: "Bekliyor",
+                lat: rLat,
+                lng: rLng
+            });
+
+            closeModal('add-personnel-modal');
+            renderPersonnelList();
+            updatePersonnelMarker(personnelData[personnelData.length-1]);
+            
+            showAdminToast(`Yeni personel eklendi: ${nameInput}`, 'success');
+        }
+
+        function removePersonnel(id) {
+            personnelData = personnelData.filter(p => p.id !== id);
+            
+            // Haritadan marker sil
+            if(markers[id]) {
+                map.removeLayer(markers[id]);
+                delete markers[id];
+            }
+            
+            renderPersonnelList();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-personnel').innerText = personnelData.length;
+            
+            const openTasks = taskData.filter(t => t.status === 'open').length;
+            document.getElementById('stat-open').innerText = openTasks;
+            
+            const closedTasks = taskData.filter(t => t.status === 'completed').length;
+            document.getElementById('stat-closed').innerText = closedTasks;
+
+            document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString('tr-TR') + ' ₺';
+        }
+
+        function addServiceFeed(title, desc, type, price = 0) {
+            const feed = document.getElementById('service-feed');
+            
+            // "Henüz yok" yazısını sil
+            if(feed.querySelector('.text-center')) {
+                feed.innerHTML = '';
+            }
+
+            const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+            
+            let iconCode, bgColor, textColor, priceBadge = '';
+            
+            if (type === 'new') {
+                iconCode = '<i class="fa-solid fa-paper-plane"></i>';
+                bgColor = 'bg-blue-100'; textColor = 'text-blue-700';
+            } else if (type === 'completed') {
+                iconCode = '<i class="fa-solid fa-check"></i>';
+                bgColor = 'bg-green-100'; textColor = 'text-green-700';
+                priceBadge = `<div class="mt-2 inline-block bg-green-50 border border-green-200 text-green-800 text-xs font-bold px-2 py-1 rounded">Tahsilat: ${price} ₺</div>`;
+            }
+
+            const item = document.createElement('div');
+            item.className = 'bg-white p-3 rounded border border-gray-100 shadow-sm flex gap-3 text-sm animate-[slideInRight_0.3s_ease-out] border-l-4 border-l-gray-300';
+            if(type === 'new') item.classList.replace('border-l-gray-300', 'border-l-blue-500');
+            if(type === 'completed') item.classList.replace('border-l-gray-300', 'border-l-green-500');
+
+            item.innerHTML = `
+                <div class="w-8 h-8 rounded-full ${bgColor} ${textColor} flex items-center justify-center shrink-0">
+                    ${iconCode}
+                </div>
+                <div class="flex-1">
+                    <div class="flex justify-between items-start">
+                        <span class="font-bold text-gray-800">${title}</span>
+                        <span class="text-[10px] text-gray-400 whitespace-nowrap">${time}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-0.5">${desc}</p>
+                    ${priceBadge}
+                </div>
+            `;
+            
+            feed.insertBefore(item, feed.firstChild); // En üste ekle
+        }
+
+        // --- TASK ASSIGNMENT (Admin -> Personel) ---
+        
+        // Yeni Görev Modalı Açma ve Mini Haritayı Yükleme Fonksiyonu
+        function openNewTaskModal() {
+            openModal('new-task-modal');
+            
+            // Eğer mini harita henüz oluşturulmadıysa oluştur
+            if (!miniMap) {
+                // Kızıltepe merkezli başlat
+                miniMap = L.map('mini-map').setView([37.1950, 40.5847], 14);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(miniMap);
+                
+                // Sürüklenebilir İşaretçi (Marker) Ekle
+                miniMapMarker = L.marker([37.1950, 40.5847], {draggable: true}).addTo(miniMap);
+                
+                // Pini sürükleyip bırakınca koordinatları güncelle
+                miniMapMarker.on('dragend', function(event) {
+                    var position = miniMapMarker.getLatLng();
+                    document.getElementById('task-lat').value = position.lat;
+                    document.getElementById('task-lng').value = position.lng;
+                });
+                
+                // Haritaya tıklayınca pini oraya taşı ve koordinatları güncelle
+                miniMap.on('click', function(e) {
+                    miniMapMarker.setLatLng(e.latlng);
+                    document.getElementById('task-lat').value = e.latlng.lat;
+                    document.getElementById('task-lng').value = e.latlng.lng;
+                });
+            }
+
+            // Modal display:none'dan flex'e geçtiği için harita boyutunu güncellemesi gerekir
+            setTimeout(() => {
+                miniMap.invalidateSize();
+            }, 100);
+        }
+
+        function assignTask() {
+            const pId = parseInt(document.getElementById('task-assignee').value);
+            const customer = document.getElementById('task-customer').value || "Bilinmeyen Müşteri";
+            const phone = document.getElementById('task-phone').value || "";
+            const detail = document.getElementById('task-detail').value || "Arıza Kontrolü";
+            const address = document.getElementById('task-address').value;
+            const lat = parseFloat(document.getElementById('task-lat').value);
+            const lng = parseFloat(document.getElementById('task-lng').value);
+
+            const person = personnelData.find(p => p.id === pId);
+            
+            // Personel durumunu güncelle
+            person.status = "Sahada";
+            renderPersonnelList();
+
+            const taskId = Date.now();
+            const newTask = {
+                id: taskId,
+                pId: pId,
+                customer: customer,
+                phone: phone,
+                detail: detail,
+                address: address, // Adresi de kaydediyoruz
+                lat: lat,
+                lng: lng,
+                status: 'open'
+            };
+            
+            taskData.push(newTask);
+
+            // Haritaya Servis Noktası Ekle (Kırmızı pin)
+            const redIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class="text-red-500 text-2xl drop-shadow-md" style="margin-top:-24px; margin-left:-8px;"><i class="fa-solid fa-location-dot"></i></div>`,
+                iconSize: [20, 20]
+            });
+            taskMarkers[taskId] = L.marker([lat, lng], {icon: redIcon}).addTo(map)
+                .bindPopup(`<b>Hedef: ${customer}</b><br>Görevli: ${person.name}`);
+            
+            // Haritayı oraya kaydır
+            map.flyTo([lat, lng], 15);
+
+            closeModal('new-task-modal');
+            
+            // Admin paneline Log düş
+            addServiceFeed('Görev Atandı', `${person.name} personeline ${customer} firması için görev atandı.`, 'new');
+            updateStats();
+            showAdminToast(`Görev ${person.name} adlı personele iletildi.`, 'info');
+
+            // Eğer atanan kişi simüle edilen mobil kullanıcıysa (id=1), telefon ekranına yansıt
+            if(pId === activeMobileUserId) {
+                renderMobileApp();
+                showMobileNotification();
+            }
+        }
+
+
+        // --- MOBILE APP FUNCTIONS (Personel Ekranı) ---
+        
+        function renderMobileApp() {
+            const container = document.getElementById('mobile-task-list');
+            const emptyState = document.getElementById('mobile-empty-state');
+            
+            // Sadece bu personele (activeMobileUserId) ait ve 'open' olan görevler
+            const myTasks = taskData.filter(t => t.pId === activeMobileUserId && t.status === 'open');
+
+            // Mevcut task kartlarını temizle (notification ve empty state hariç)
+            Array.from(container.children).forEach(child => {
+                if(child.id !== 'mobile-notification' && child.id !== 'mobile-empty-state') {
+                    child.remove();
+                }
+            });
+
+            if (myTasks.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                
+                myTasks.forEach(task => {
+                    const addressHtml = task.address ? `<p class="text-[10px] text-gray-600 mt-2 mb-1 border-l-2 border-blue-500 pl-2 bg-blue-50 py-1"><i class="fa-solid fa-location-dot mr-1 text-blue-500"></i>${task.address}</p>` : '';
+                    const phoneHtml = task.phone ? `<div class="mb-2"><a href="tel:${task.phone}" class="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full"><i class="fa-solid fa-phone"></i> ${task.phone}</a></div>` : '';
+                    
+                    // Google Haritalar Yol Tarifi Linki
+                    const mapUrl = `https://www.google.com/maps/dir/?api=1&destination=${task.lat},${task.lng}`;
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white border border-gray-200 rounded-lg shadow-sm p-3 border-l-4 border-l-[#f59e0b]";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded">Yeni Görev</span>
+                            <a href="${mapUrl}" target="_blank" class="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1 transition-colors"><i class="fa-solid fa-location-arrow"></i> Yol Tarifi</a>
+                        </div>
+                        <h4 class="font-bold text-gray-800 text-sm mb-1">${task.customer}</h4>
+                        ${phoneHtml}
+                        <p class="text-xs text-gray-500 mb-2">${task.detail}</p>
+                        ${addressHtml}
+                        
+                        <button onclick="openCompleteModal(${task.id}, '${task.customer.replace(/'/g, "\\'")}')" class="w-full bg-blue-600 text-white text-xs font-bold py-2 mt-2 rounded shadow hover:bg-blue-700 transition">
+                            İŞİ TAMAMLA VE KAPAT
+                        </button>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+        }
+
+        function showMobileNotification() {
+            const notif = document.getElementById('mobile-notification');
+            notif.classList.remove('-translate-y-[150%]');
+            setTimeout(() => {
+                notif.classList.add('-translate-y-[150%]');
+            }, 4000);
+        }
+
+        // İşi Tamamlama Modalı (Mobilde basılınca açılan)
+        function openCompleteModal(taskId, customerName) {
+            document.getElementById('complete-task-id').value = taskId;
+            document.getElementById('complete-task-customer').innerText = customerName;
+            document.getElementById('complete-desc').value = ""; // temizle
+            document.getElementById('complete-price').value = ""; // temizle
+            openModal('complete-task-modal');
+        }
+
+        // Personel formu doldurup Gönder'e basınca
+        function submitCompletedTask() {
+            const taskId = parseInt(document.getElementById('complete-task-id').value);
+            const desc = document.getElementById('complete-desc').value;
+            const priceStr = document.getElementById('complete-price').value;
+            const price = parseFloat(priceStr) || 0;
+
+            if(!desc) { alert("Lütfen yapılan işlemi yazınız."); return; }
+
+            // Görevi kapat
+            const task = taskData.find(t => t.id === taskId);
+            if(task) {
+                task.status = 'completed';
+                task.completedDesc = desc;
+                task.price = price;
+            }
+
+            // Personeli boşa çıkart
+            const person = personnelData.find(p => p.id === activeMobileUserId);
+            if(person) {
+                person.status = "Bekliyor";
+                renderPersonnelList();
+            }
+
+            // Haritadan kırmızı hedef pinini kaldır
+            if(taskMarkers[taskId]) {
+                map.removeLayer(taskMarkers[taskId]);
+                delete taskMarkers[taskId];
+            }
+
+            // Ciroyu ekle
+            totalRevenue += price;
+
+            // Admin Listesine Log Düş
+            addServiceFeed(
+                'Servis Tamamlandı', 
+                `<b>${person.name}</b>, ${task.customer} firmasının işlemini bitirdi.<br><i>Not: ${desc}</i>`, 
+                'completed',
+                price
+            );
+
+            updateStats();
+            closeModal('complete-task-modal');
+            renderMobileApp(); // Mobildeki listeyi yenile (boşalacak)
+            showAdminToast(`${task.customer} servisi tamamlandı, tahsilat: ${price} TL`, 'success');
+        }
+
+
+        // --- UTILS ---
+        
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById(id).classList.add('flex');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
+        }
+
+        // Admin ekranında çıkan yeşil/mavi küçük uyarı baloncuğu
+        function showAdminToast(message, type='info') {
+            const container = document.getElementById('admin-toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-green-600' : 'bg-blue-600';
+            const icon = type === 'success' ? 'fa-check' : 'fa-info-circle';
+
+            toast.className = `${bgClass} text-white px-4 py-3 rounded shadow-lg text-sm font-medium flex items-center gap-3 toast-animate`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> ${message}`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        // Haritada personelin konumunu rastgele biraz hareket ettirme simülasyonu (Butona basınca)
+        function simulatePersonnelMovement(pId) {
+            const person = personnelData.find(p => p.id === pId);
+            if(person) {
+                // Rastgele minik bir koordinat değişimi
+                person.lat += (Math.random() - 0.5) * 0.005;
+                person.lng += (Math.random() - 0.5) * 0.005;
+                
+                updatePersonnelMarker(person);
+                map.panTo([person.lat, person.lng]);
+                showAdminToast(`${person.name} konumu güncellendi.`, 'info');
+            }
+        }
+
+        // --- LOGIN SISTEMI ---
+        function performLogin() {
+            const userVal = document.getElementById('login-username').value.trim().toLowerCase();
+            const passVal = document.getElementById('login-password').value.trim();
+            const loginError = document.getElementById('login-error');
+
+            if(userVal === 'mesut' && passVal === '0852') {
+                // YÖNETİCİ GİRİŞİ (Abinin Ekranı)
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('top-nav').classList.remove('hidden');
+                document.getElementById('main-content-area').classList.remove('hidden');
+                
+                // Admin panelini göster
+                document.getElementById('admin-panel').classList.remove('hidden');
+                // Sistemi test edebilmeniz için mobil paneli de sağ tarafta gösteriyoruz
+                document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
+                
+                showAdminToast('Sisteme Admin olarak giriş yapıldı.', 'success');
+                
+                // Haritanın düzgün yüklenmesi için yeniden boyutlandırma
+                setTimeout(() => map.invalidateSize(), 100);
+
+            } else {
+                // ÇALIŞAN GİRİŞİ KONTROLÜ
+                const person = personnelData.find(p => p.user === userVal && p.pass === passVal);
+                
+                if(person) {
+                    // Çalışan doğru bilgilerle giriş yaptı
+                    activeMobileUserId = person.id;
+                    document.getElementById('active-mobile-user').innerText = person.name;
+                    
+                    document.getElementById('login-screen').classList.add('hidden');
+                    document.getElementById('main-content-area').classList.remove('hidden');
+                    
+                    // Çalışana Admin panelini tamamen Kapat!
+                    document.getElementById('top-nav').classList.add('hidden'); 
+                    document.getElementById('admin-panel').classList.add('hidden');
+                    
+                    // Çalışana Sadece Mobil Ekranı Tam Sayfa Ortalanmış Olarak Göster
+                    document.getElementById('mobile-panel').className = "w-full bg-[#2d3748] flex flex-col items-center justify-center p-4 h-full";
+                    
+                    renderMobileApp(); // Sadece ona atanmış görevleri yükle
+                } else {
+                    // Hatalı Giriş
+                    loginError.classList.remove('hidden');
+                }
+            }
+        }
+
+        // Çıkış Yapma Fonksiyonu
+        function logout() {
+            // Aktif kullanıcıyı sıfırla
+            activeMobileUserId = null;
+            
+            // Ekranları gizle, login ekranını aç
+            document.getElementById('main-content-area').classList.add('hidden');
+            document.getElementById('top-nav').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            
+            // Formu temizle
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').classList.add('hidden');
+            
+            // Panelleri varsayılan (Admin) görünümlerine geri getir
+            document.getElementById('admin-panel').classList.remove('hidden');
+            document.getElementById('mobile-panel').className = "hidden lg:flex w-1/3 bg-[#2d3748] flex-col items-center justify-center p-4 border-l-4 border-[#1a202c]";
+        }
+
+        // Harita Büyütme Fonksiyonu
+        let isMapFullscreen = false;
+        function toggleMapFullscreen() {
+            const container = document.getElementById('mini-map-container');
+            const mapDiv = document.getElementById('mini-map');
+            const closeBtn = document.getElementById('close-fullscreen-btn');
+            isMapFullscreen = !isMapFullscreen;
+
+            if (isMapFullscreen) {
+                container.classList.add('fixed', 'inset-4', 'z-[2000]', 'shadow-2xl', 'p-2', 'rounded-xl');
+                mapDiv.classList.remove('h-32');
+                mapDiv.classList.add('h-full');
+                closeBtn.classList.remove('hidden');
+            } else {
+                container.classList.remove('fixed', 'inset-4', 'z-[2000]', 'shadow-2xl', 'p-2', 'rounded-xl');
+                mapDiv.classList.remove('h-full');
+                mapDiv.classList.add('h-32');
+                closeBtn.classList.add('hidden');
+            }
+            setTimeout(() => miniMap.invalidateSize(), 300);
+        }
+
+        // Adres Arama Fonksiyonu
+        async function searchAddress(event) {
+            const query = document.getElementById('map-search-input').value;
+            if(!query) return;
+            
+            const btn = event.currentTarget;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await response.json();
+                
+                if(data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    
+                    miniMap.flyTo([lat, lon], 16);
+                    miniMapMarker.setLatLng([lat, lon]);
+                    
+                    document.getElementById('task-lat').value = lat;
+                    document.getElementById('task-lng').value = lon;
+                    showAdminToast("Konum haritada bulundu.", "success");
+                } else {
+                    alert("Adres bulunamadı. Lütfen daha belirgin yazın.");
+                }
+            } catch(e) {
+                console.error("Adres arama hatası:", e);
+                alert("Arama sırasında bir hata oluştu.");
+            } finally {
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+    </script>
+</body>
+</html>
+  const mainContainerRef = useRef(null);
+  const manualTrackRef = useRef(null);
+  const audioCtxRef = useRef(null);
+  const isDraggingRef = useRef(false);
+
+  // Ses Sentezleyici
+  const initAudio = () => {
+    if (!audioCtxRef.current) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        audioCtxRef.current = new AudioContext();
+      }
+    }
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+  };
+
+  const playSound = (type) => {
+    // Eğer ses kapalıysa hiçbir şey çalma
+    if (isMuted) return;
+
+    if (!audioCtxRef.current) return;
+    const ctx = audioCtxRef.current;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'success') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'error') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } else if (type === 'win') {
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
+        g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.15);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.15 + 0.4);
+        o.start(ctx.currentTime + i * 0.15);
+        o.stop(ctx.currentTime + i * 0.15 + 0.4);
+      });
+    }
+  };
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      mainContainerRef.current?.requestFullscreen().catch(() => {});
+      setIsFullScreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullScreen(false);
+    }
+  };
+
+  const generateQuestion = useCallback((pos) => {
+    if (pos >= 20) {
+      setIsFinished(true);
+      playSound('win');
+      return;
+    }
+    const types = ['bigger', 'after', 'before'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    let qText = '', options = [], correct = 0;
+
+    if (type === 'bigger') {
+      const n1 = Math.max(0, pos + Math.floor(Math.random() * 3));
+      let n2 = Math.min(20, n1 + Math.floor(Math.random() * 4) + 1);
+      if (n1 === n2) n2 = Math.min(20, n1 + 1);
+      qText = "Hangi sayı daha BÜYÜK?";
+      correct = n2;
+      options = [n1, n2].sort(() => Math.random() - 0.5);
+    } else if (type === 'after') {
+      qText = `${pos} sayısından SONRA hangi sayı gelir?`;
+      correct = pos + 1;
+      options = [correct, correct + 2].filter(n => n <= 20).sort(() => Math.random() - 0.5);
+      if (options.length < 2) options = [correct, Math.max(0, correct - 2)];
+    } else {
+      const target = Math.min(20, pos + 2);
+      qText = `${target} sayısından ÖNCE hangi sayı gelir?`;
+      correct = target - 1;
+      options = [correct, target + 1].filter(n => n >= 0 && n <= 20).sort(() => Math.random() - 0.5);
+      if (options.length < 2) options = [correct, target + 2];
+    }
+    setQuestion({ text: qText, options, correct });
+    setFeedback({ message: '', type: '' });
+  }, [isMuted]); // isMuted değişince fonksiyon referansı güncellensin (opsiyonel ama güvenli)
+
+  const startGame = () => {
+    initAudio();
+    setGameStarted(true);
+    setCurrentPosition(0);
+    generateQuestion(0);
+  };
+
+  const handleManualMove = (e) => {
+    if (!isDraggingRef.current || !manualTrackRef.current) return;
+    const rect = manualTrackRef.current.getBoundingClientRect();
+    const padding = 40;
+    const trackWidth = rect.width - (padding * 2);
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const offsetX = clientX - rect.left - padding;
+    const percentage = Math.max(0, Math.min(1, offsetX / trackWidth));
+    const newPos = Math.round(percentage * 20);
+    setManualPosition(newPos);
+  };
+
+  const handleAnswer = (selected) => {
+    if (selected === question.correct) {
+      const nextPos = currentPosition + 1;
+      setCurrentPosition(nextPos);
+      playSound('success');
+      setFeedback({ message: 'Harika! Araba ilerliyor! 🏎️', type: 'success' });
+      setTimeout(() => generateQuestion(nextPos), 1500);
+    } else {
+      playSound('error');
+      setFeedback({ message: 'Tekrar dene, başarabilirsin! 💪', type: 'error' });
+    }
+  };
+
+  // Yeni Üstten Görünüm Araba SVG
+  const RaceCar = ({ color, showLabels }) => (
+    <div className="relative flex flex-col items-center">
+      {showLabels && (
+        <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-slate-400 rotate-[-90deg]">
+           <ArrowUp size={10}/> ARKA
+        </div>
+      )}
+      {showLabels && (
+        <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-bold text-blue-600 rotate-[90deg]">
+           ÖN <ArrowUp size={10}/>
+        </div>
+      )}
+      <svg width="60" height="30" viewBox="0 0 60 30" className="drop-shadow-lg">
+        {/* Gövde */}
+        <path d="M5,5 L45,5 C55,5 60,15 60,15 C60,15 55,25 45,25 L5,25 Z" fill={color} />
+        {/* Kokpit */}
+        <rect x="20" y="8" width="12" height="14" rx="2" fill="#333" />
+        {/* Tekerlekler */}
+        <rect x="10" y="2" width="8" height="4" rx="1" fill="#111" />
+        <rect x="10" y="24" width="8" height="4" rx="1" fill="#111" />
+        <rect x="40" y="2" width="8" height="4" rx="1" fill="#111" />
+        <rect x="40" y="24" width="8" height="4" rx="1" fill="#111" />
+        {/* Spoiler (Arka) */}
+        <rect x="2" y="4" width="3" height="22" fill="#999" />
+      </svg>
+    </div>
+  );
+
+  const CarIcon = ({ color, size = 48 }) => (
+    <svg width={size} height={size / 2} viewBox="0 0 60 30" style={{ transform: 'rotate(0deg)' }}>
+      <path d="M5,5 L45,5 C55,5 60,15 60,15 C60,15 55,25 45,25 L5,25 Z" fill={color} />
+      <rect x="20" y="8" width="12" height="14" rx="2" fill="#333" />
+    </svg>
+  );
+
+  if (!gameStarted) {
+    return (
+      <div className="flex h-screen w-full bg-slate-900 items-center justify-center p-6 text-center">
+        <div className="bg-white p-12 rounded-[3rem] shadow-2xl max-w-lg w-full">
+          <div className="bg-blue-600 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+             <CarIcon color="white" />
+          </div>
+          <h1 className="text-4xl font-black text-slate-800 mb-4 tracking-tight">MATEMATİK YARIŞI</h1>
+          <p className="text-slate-500 font-medium mb-10 leading-relaxed text-lg">
+            Öğrenci dostu yeni yarış arabalarıyla sayıları keşfetmeye hazır mısın?
+          </p>
+          <button onClick={startGame} className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black text-3xl shadow-xl hover:scale-105 transition-transform active:scale-95">
+            BAŞLAT
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={mainContainerRef} className="flex flex-col h-screen w-full bg-slate-50 overflow-hidden font-sans select-none">
+      
+      {/* HEADER */}
+      <div className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm z-50">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg"><CarIcon color="white" size={24}/></div>
+          <h1 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Matematik Yarışı</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={toggleFullScreen} className="px-3 py-2 bg-slate-800 text-white rounded-full font-bold text-sm hover:bg-slate-700 transition-colors">
+            {isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}
+          </button>
+          
+          {/* SES KONTROL BUTONU */}
+          <button 
+            onClick={() => { initAudio(); setIsMuted(!isMuted); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm transition-all ${isMuted ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            {isMuted ? "SES KAPALI" : "SES AÇIK"}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 p-4 md:p-8 flex flex-col items-center justify-center max-w-6xl mx-auto w-full space-y-20">
+        
+        {/* YOL TASARIMI YARDIMCI BİLEŞENİ */}
+        {[
+          { label: "1. DENEME YOLU", pos: manualPosition, color: "#3b82f6", trackRef: manualTrackRef, type: "manual", icon: <MoveHorizontal size={24}/> },
+          { label: "2. YARIŞ YOLU", pos: currentPosition, color: "#ef4444", trackRef: null, type: "auto", icon: <Trophy size={24}/> }
+        ].map((road, idx) => (
+          <div key={idx} className="w-full">
+            <div className={`flex items-center gap-2 font-black text-lg mb-4 ${road.color === '#3b82f6' ? 'text-blue-600' : 'text-red-600'}`}>
+              {road.icon} {road.label}
+            </div>
+            
+            <div 
+              ref={road.trackRef}
+              onMouseMove={road.type === 'manual' ? handleManualMove : null}
+              onTouchMove={road.type === 'manual' ? handleManualMove : null}
+              onMouseDown={road.type === 'manual' ? () => { isDraggingRef.current = true; initAudio(); } : null}
+              onMouseUp={() => { isDraggingRef.current = false; }}
+              onTouchStart={road.type === 'manual' ? () => { isDraggingRef.current = true; initAudio(); } : null}
+              onTouchEnd={() => { isDraggingRef.current = false; }}
+              className={`w-full h-16 md:h-20 bg-slate-800 rounded-2xl relative border-y-4 border-dashed border-slate-600 flex items-center px-[40px] shadow-2xl ${road.type === 'manual' ? 'cursor-pointer' : ''}`}
+            >
+              {road.type === 'auto' && <Flag className="absolute right-4 text-white opacity-20" size={40}/>}
+              
+              {/* Araba ve Balon */}
+              <div 
+                className={`absolute z-20 pointer-events-none ${road.type === 'auto' ? 'transition-all duration-1000' : ''}`}
+                style={{ left: `calc(40px + ${(road.pos / 20) * (100)}% - 40px)`, transform: 'translateX(-50%)' }}
+              >
+                <div className="relative flex flex-col items-center">
+                  <div className={`${road.color === '#3b82f6' ? 'bg-blue-600' : 'bg-yellow-400 text-black'} text-white px-3 py-1 rounded-xl text-xl font-black shadow-xl border-2 border-white mb-2`}>
+                    {road.pos}
+                  </div>
+                  <RaceCar color={road.color} showLabels={true} />
+                </div>
+              </div>
+
+              {/* Sayı Doğrusu ve Çizgiler */}
+              <div className="absolute bottom-[-50px] left-0 w-full flex justify-between px-[40px] text-xs font-black text-slate-500">
+                {[...Array(21)].map((_, i) => (
+                  <div key={i} className="flex flex-col items-center w-0 overflow-visible">
+                    <div className={`w-1 transition-all ${i === road.pos ? 'h-6 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'h-3 bg-slate-400'} mb-1`}></div>
+                    <span className={`transition-all ${i === road.pos ? 'text-blue-600 scale-150 text-base' : 'text-[10px]'}`}>{i}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* SORU ALANI */}
+        <div className="w-full max-w-3xl bg-white border-4 border-slate-100 rounded-[3rem] p-8 md:p-12 shadow-2xl text-center relative overflow-hidden">
+          {!isFinished ? (
+            <>
+              <h2 className="text-3xl md:text-5xl font-black text-slate-800 mb-10 min-h-[80px] flex items-center justify-center leading-tight tracking-tight">
+                {question?.text}
+              </h2>
+              <div className="grid grid-cols-2 gap-6 md:gap-12">
+                {question?.options.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => { initAudio(); handleAnswer(opt); }}
+                    className="py-8 md:py-14 text-6xl md:text-9xl font-black bg-slate-50 border-b-[12px] border-slate-200 text-blue-600 rounded-[2rem] hover:bg-blue-50 transition-all active:translate-y-4 active:border-b-0 shadow-lg"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+              {feedback.message && (
+                <div className={`mt-8 p-5 rounded-2xl flex items-center justify-center gap-3 font-black text-2xl animate-bounce ${
+                  feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {feedback.type === 'success' ? <CheckCircle2 size={32}/> : <AlertCircle size={32}/>}
+                  {feedback.message}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="py-10 text-center animate-in zoom-in duration-700">
+              <Trophy size={150} className="mx-auto text-yellow-500 mb-6 drop-shadow-2xl" />
+              <h2 className="text-6xl font-black text-yellow-800 mb-6 tracking-tighter">ŞAMPİYON!</h2>
+              <p className="text-2xl text-yellow-700 font-bold mb-10 italic">Harikasın! Sayıların efendisi sensin!</p>
+              <button 
+                onClick={() => { setCurrentPosition(0); setIsFinished(false); generateQuestion(0); }}
+                className="px-16 py-6 bg-yellow-500 text-white rounded-full font-black text-3xl shadow-2xl flex items-center gap-4 mx-auto hover:scale-105 transition-transform"
+              >
+                <RotateCcw size={36} /> TEKRAR BAŞLA
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
