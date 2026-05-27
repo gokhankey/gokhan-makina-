@@ -339,28 +339,12 @@
         </div>
     </div>
 
-    <!-- FIREBASE & UYGULAMA MANTIĞI EKLENDİ -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase Yapılandırması ve Başlatılması
-        let app, auth, db, appId, userSession;
-        try {
-            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            appId = typeof __app_id !== 'undefined' ? __app_id : 'gokhan-makina-default-id';
-        } catch (error) {
-            console.error("Firebase config error:", error);
-        }
-
-        // --- VERİ LİSTELERİ ---
-        let personnelData = [];
-        let taskData = [];
-        let totalRevenue = 0;
+    <!-- UYGULAMA MANTIĞI (LOCAL STORAGE) -->
+    <script>
+        // --- VERİ LİSTELERİ (Tarayıcı Hafızasından Çekilir) ---
+        let personnelData = JSON.parse(localStorage.getItem('gokhan_personnel')) || [];
+        let taskData = JSON.parse(localStorage.getItem('gokhan_tasks')) || [];
+        let totalRevenue = parseFloat(localStorage.getItem('gokhan_revenue')) || 0;
         let activeMobileUserId = null;
 
         // Leaflet Map Değişkenleri
@@ -368,20 +352,12 @@
         let taskMarkers = []; 
         let personnelMarkers = []; 
 
-        // Kimlik Doğrulama (Zorunlu Güvenlik Kuralı)
-        const initAuth = async () => {
-            if (!auth) return;
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth error:", error);
-            }
-        };
-        initAuth();
+        // Verileri Tarayıcıya Kaydetme
+        function saveData() {
+            localStorage.setItem('gokhan_personnel', JSON.stringify(personnelData));
+            localStorage.setItem('gokhan_tasks', JSON.stringify(taskData));
+            localStorage.setItem('gokhan_revenue', totalRevenue.toString());
+        }
 
         // Saat Güncelleme
         setInterval(() => {
@@ -391,7 +367,7 @@
 
         // --- GLOBAL FONKSİYONLAR ---
 
-        window.performLogin = async () => {
+        window.performLogin = () => {
             const userVal = document.getElementById('login-username').value.trim().toLowerCase();
             const passVal = document.getElementById('login-password').value.trim();
             const loginError = document.getElementById('login-error');
@@ -400,11 +376,12 @@
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş Yapılıyor...';
             loginError.classList.add('hidden');
 
-            try {
-                // YÖNETİCİ GİRİŞİ KONTROLÜ (Veritabanında olmasa bile giriş yapabilsin)
+            setTimeout(() => {
+                loginBtn.innerHTML = '<span>Sisteme Giriş Yap</span>';
+
+                // YÖNETİCİ GİRİŞİ KONTROLÜ
                 if(userVal === 'mesut' && passVal === '0852') {
                     
-                    // Arayüzü Değiştir
                     document.getElementById('login-screen').classList.add('hidden');
                     document.getElementById('top-nav').classList.remove('hidden');
                     document.getElementById('main-content-area').classList.remove('hidden');
@@ -416,32 +393,35 @@
                     
                     initMaps();
                     
-                    // Admin'i de veritabanına "Yönetici" rolüyle kaydet (Yoksa)
-                    if(userSession && !personnelData.some(p => p.username === 'mesut')) {
-                         const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
-                         await addDoc(personnelRef, {
+                    // Admin'i de listeye kaydet (Yoksa)
+                    if(!personnelData.some(p => p.username === 'mesut')) {
+                         personnelData.push({
+                            id: 'admin_1',
                             name: "Mesut (Admin)",
                             username: "mesut",
                             password: "0852",
                             status: "Yönetici",
-                            role: "admin", // Admin rolü
+                            role: "admin",
                             lat: 37.1950, 
                             lng: 40.5847
                         });
+                        saveData();
                     }
 
-                    return; // Fonksiyondan çık, başarılı
+                    renderPersonnelList();
+                    renderLiveFeed();
+                    updateStats();
+                    return;
                 } 
 
-                // PERSONEL GİRİŞ KONTROLÜ (Veritabanından)
+                // PERSONEL GİRİŞ KONTROLÜ
                 const person = personnelData.find(p => p.username === userVal && p.password === passVal);
                 
                 if(person) {
-                    // Eğer giriş yapan kişi daha önce eklediğimiz "Admin" ise, personel ekranına yönlendirme
                     if(person.role === 'admin') {
                         document.getElementById('login-username').value = 'mesut';
                         document.getElementById('login-password').value = '0852';
-                        window.performLogin(); // Admin girişine tekrar yönlendir
+                        window.performLogin();
                         return;
                     }
 
@@ -461,13 +441,7 @@
                 } else {
                     loginError.classList.remove('hidden');
                 }
-            } catch(e) {
-                console.error("Giriş Hatası:", e);
-                loginError.innerText = "Sistemsel bir hata oluştu. Lütfen tekrar deneyin.";
-                loginError.classList.remove('hidden');
-            } finally {
-                loginBtn.innerHTML = '<span>Sisteme Giriş Yap</span>';
-            }
+            }, 500);
         };
 
         window.logout = () => {
@@ -518,11 +492,16 @@
         // --- YÖNETİCİ PANELİ (ADMIN) FONKSİYONLARI ---
         
         function updateStats() {
-            document.getElementById('stat-personnel').innerText = personnelData.length;
+            // Sadece personelleri say (Admin hariç)
+            const pCount = personnelData.filter(p => p.role !== 'admin').length;
+            document.getElementById('stat-personnel').innerText = pCount;
+            
             const openTasks = taskData.filter(t => t.status === 'open').length;
             document.getElementById('stat-open').innerText = openTasks;
+            
             const closedTasks = taskData.filter(t => t.status === 'completed').length;
             document.getElementById('stat-closed').innerText = closedTasks;
+            
             document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString('tr-TR') + ' ₺';
         }
 
@@ -532,7 +511,6 @@
 
             let allFeedItems = [];
             
-            // Tamamlanan işleri ekle
             taskData.filter(t => t.status === 'completed' && t.completedAt).forEach(t => {
                 const p = personnelData.find(pers => pers.id === t.pId);
                 allFeedItems.push({
@@ -544,7 +522,6 @@
                 });
             });
             
-            // Açık işleri (yeni atanan) ekle
             taskData.filter(t => t.status === 'open' && t.createdAt).forEach(t => {
                 const p = personnelData.find(pers => pers.id === t.pId);
                 allFeedItems.push({
@@ -556,7 +533,6 @@
                 });
             });
             
-            // En yeni tarihe göre sırala
             allFeedItems.sort((a,b) => b.time - a.time);
             
             if (allFeedItems.length === 0) {
@@ -593,7 +569,6 @@
             list.innerHTML = '';
             select.innerHTML = '';
 
-            // Personel listesinden "Admin" (mesut) hesabını gizle (sadece personeller görünsün)
             const filteredPersonnel = personnelData.filter(p => p.role !== 'admin');
 
             if(filteredPersonnel.length === 0) {
@@ -640,7 +615,6 @@
                 taskMarkers.push(marker);
             });
 
-            // Sadece admin OLMAYAN personellerin konumunu haritada göster
             personnelData.filter(p => p.role !== 'admin').forEach(p => {
                 const customIcon = L.divIcon({
                     className: 'custom-div-icon',
@@ -663,52 +637,52 @@
             document.getElementById('new-p-pass').value = '';
         };
         
-        window.saveNewPersonnel = async () => {
+        window.saveNewPersonnel = () => {
             const name = document.getElementById('new-p-name').value;
             const user = document.getElementById('new-p-username').value.toLowerCase().trim();
             const pass = document.getElementById('new-p-pass').value;
             const btn = document.getElementById('btn-save-personnel');
             
             if(!name || !user || !pass) { alert("Lütfen tüm alanları doldurun."); return; }
-            if(!userSession) return;
 
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Kaydediliyor...';
             btn.disabled = true;
 
-            try {
-                const personnelRef = collection(db, 'artifacts', appId, 'public', 'data', 'personnel');
-                await addDoc(personnelRef, {
+            setTimeout(() => {
+                personnelData.push({
+                    id: 'p_' + Date.now(),
                     name: name,
                     username: user,
                     password: pass,
                     status: "Bekliyor",
+                    role: "personnel",
                     lat: 37.1950 + (Math.random() * 0.01 - 0.005), 
                     lng: 40.5847 + (Math.random() * 0.01 - 0.005)
                 });
+                
+                saveData(); // Verileri kaydet
                 window.closeAddPersonnelModal();
-            } catch (error) {
-                console.error(error);
-                alert("Personel eklenirken hata oluştu!");
-            } finally {
+                renderPersonnelList();
+                updateStats();
+                
                 btn.innerHTML = 'Personeli Kaydet';
                 btn.disabled = false;
-            }
+            }, 500);
         };
 
-        window.deletePersonnel = async (id) => {
-            if(!userSession) return;
+        window.deletePersonnel = (id) => {
             if(confirm("Personeli tamamen silmek istediğinize emin misiniz?")) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'personnel', id));
-                } catch(error) {
-                    console.error("Silme hatası:", error);
-                }
+                personnelData = personnelData.filter(p => p.id !== id);
+                saveData();
+                renderPersonnelList();
+                updateStats();
             }
         };
 
         // --- GÖREV ATAMA (ADMIN) ---
         window.openNewTaskModal = () => {
-            if(personnelData.length === 0) { alert("Lütfen önce personel ekleyin!"); return; }
+            const pCount = personnelData.filter(p => p.role !== 'admin').length;
+            if(pCount === 0) { alert("Lütfen önce personel ekleyin!"); return; }
             document.getElementById('new-task-modal').classList.remove('hidden');
             setTimeout(() => miniMap.invalidateSize(), 200);
         };
@@ -722,10 +696,8 @@
             document.getElementById('map-search-input').value = '';
         };
 
-        window.assignTask = async () => {
-            if(!userSession) return;
-            
-            const pId = document.getElementById('task-assignee').value; // Artık string ID
+        window.assignTask = () => {
+            const pId = document.getElementById('task-assignee').value;
             const customer = document.getElementById('task-customer').value || "Bilinmeyen Müşteri";
             const phone = document.getElementById('task-phone').value || "";
             const detail = document.getElementById('task-detail').value || "Arıza Kontrolü";
@@ -737,10 +709,9 @@
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gönderiliyor...';
             btn.disabled = true;
 
-            try {
-                // 1. Yeni görevi buluta yaz
-                const tasksRef = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
-                await addDoc(tasksRef, {
+            setTimeout(() => {
+                taskData.push({
+                    id: 't_' + Date.now(),
                     pId: pId,
                     customer: customer,
                     phone: phone,
@@ -752,18 +723,24 @@
                     createdAt: Date.now()
                 });
 
-                // 2. Personel durumunu güncelle (Sahada)
-                const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', pId);
-                await updateDoc(personRef, { status: "Sahada" });
+                const person = personnelData.find(p => p.id === pId);
+                if(person) person.status = "Sahada";
 
+                saveData();
                 window.closeNewTaskModal();
-            } catch (error) {
-                console.error(error);
-                alert("Görev gönderilirken hata oluştu!");
-            } finally {
+                renderPersonnelList();
+                renderLiveFeed();
+                updateMainMapMarkers();
+                updateStats();
+
+                if(activeMobileUserId === pId) {
+                    renderMobileApp();
+                    showMobileNotification();
+                }
+
                 btn.innerHTML = 'Görevi Gönder (Bildirim)';
                 btn.disabled = false;
-            }
+            }, 500);
         };
 
         // Harita Büyütme
@@ -829,7 +806,6 @@
             
             const myTasks = taskData.filter(t => t.pId === activeMobileUserId && t.status === 'open').sort((a,b) => b.createdAt - a.createdAt);
 
-            // Bildirim hariç kartları temizle
             Array.from(container.children).forEach(child => {
                 if(child.id !== 'mobile-notification' && child.id !== 'mobile-empty-state') {
                     child.remove();
@@ -888,10 +864,8 @@
             document.getElementById('complete-task-modal').classList.add('hidden');
         };
 
-        window.submitCompletedTask = async () => {
-            if(!userSession) return;
-
-            const taskId = document.getElementById('complete-task-id').value; // string ID
+        window.submitCompletedTask = () => {
+            const taskId = document.getElementById('complete-task-id').value; 
             const note = document.getElementById('complete-note').value;
             const price = parseFloat(document.getElementById('complete-price').value) || 0;
             const btn = document.getElementById('btn-submit-task');
@@ -899,35 +873,36 @@
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> İletiliyor...';
             btn.disabled = true;
 
-            try {
-                // 1. Görevi bulutta güncelle
-                const taskRef = doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId);
-                await updateDoc(taskRef, {
-                    status: 'completed',
-                    note: note,
-                    price: price,
-                    completedAt: Date.now()
-                });
+            setTimeout(() => {
+                const task = taskData.find(t => t.id === taskId);
+                if(task) {
+                    task.status = 'completed';
+                    task.note = note;
+                    task.price = price;
+                    task.completedAt = Date.now();
+                    
+                    totalRevenue += price;
 
-                // 2. Personel durumunu kontrol et (Açık işi kaldı mı?)
-                const currentTask = taskData.find(t => t.id === taskId);
-                if(currentTask) {
-                    const hasMoreTasks = taskData.some(t => t.pId === currentTask.pId && t.status === 'open' && t.id !== taskId);
+                    const hasMoreTasks = taskData.some(t => t.pId === task.pId && t.status === 'open' && t.id !== taskId);
                     if(!hasMoreTasks) {
-                        const personRef = doc(db, 'artifacts', appId, 'public', 'data', 'personnel', currentTask.pId);
-                        await updateDoc(personRef, { status: "Bekliyor" });
+                        const person = personnelData.find(p => p.id === task.pId);
+                        if(person) person.status = "Bekliyor";
                     }
                 }
 
+                saveData(); // Verileri kaydet
                 window.closeCompleteModal();
+                
+                renderPersonnelList();
+                renderLiveFeed();
+                updateStats();
+                renderMobileApp();
+                
                 alert("İş başarıyla tamamlandı ve merkeze iletildi!");
-            } catch (error) {
-                console.error(error);
-                alert("İşlem kaydedilirken bir hata oluştu.");
-            } finally {
+                
                 btn.innerHTML = '<i class="fa-solid fa-check"></i> Admine Gönder';
                 btn.disabled = false;
-            }
+            }, 500);
         };
     </script>
 </body>
